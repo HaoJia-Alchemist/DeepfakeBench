@@ -14,3 +14,4 @@ from .ucf_detector import UCFDetector
 from .recce_detector import RecceDetector
 from .fwa_detector import FWADetector
 from .ffd_detector import FFDDetector
+from .dsmsnlc_detector import DSMSNLCDetector

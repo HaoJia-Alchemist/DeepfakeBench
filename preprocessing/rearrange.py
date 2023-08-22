@@ -135,20 +135,21 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
             dataset_dict['FaceForensics++']['FF-real']['test'] = {}
             dataset_dict['FaceForensics++']['FF-real']['val'] = {}
             for compression_level in os.scandir(os.path.join(dataset_path, 'original_sequences', 'youtube')):
-                if compression_level.is_dir():
+                if compression_level.is_dir() and compression_level.name in ["c23", "c40", "raw"]:
                     compression_level = compression_level.name
+            # if os.path.isdir(os.path.join(dataset_path, 'original_sequences', 'youtube', compression_level)):
                     dataset_dict['FaceForensics++']['FF-real']['train'][compression_level] = {}
                     dataset_dict['FaceForensics++']['FF-real']['test'][compression_level] = {}
                     dataset_dict['FaceForensics++']['FF-real']['val'][compression_level] = {}
-            
-                # Iterate over all videos
+
+            # Iterate over all videos
                 for video_path in os.scandir(os.path.join(dataset_path, 'original_sequences', 'youtube', compression_level, 'frames')):
                     if video_path.is_dir():
                         video_name = video_path.name
                         mode = video_to_mode[video_name]
                         frame_paths = [os.path.join(video_path, frame.name) for frame in os.scandir(video_path)]
                         dataset_dict['FaceForensics++']['FF-real'][mode][compression_level][video_name] = {'label': ff_dict[label], 'frames': frame_paths}
-                        
+
             label = 'DFD_Real'  
             # Same operations for DeepfakeDetection real dataset
             dataset_dict['FaceForensics++']['DFD_real']['train'] = {}
@@ -181,6 +182,7 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
                     # Iterate over all compression levels: c23, c40, raw
                     for compression_level in os.scandir(os.path.join(dataset_path, 'manipulated_sequences', label)):
                         if compression_level.is_dir() and compression_level.name in ["c23", "c40", "raw"]:
+                    # if os.path.isdir(os.path.join(dataset_path, 'manipulated_sequences', label, compression_level)):
                             compression_level = compression_level.name
                             dataset_dict['FaceForensics++'][ff_dict[label]]['train'][compression_level] = {}
                             dataset_dict['FaceForensics++'][ff_dict[label]]['test'][compression_level] = {}
@@ -210,7 +212,7 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
                                     else:
                                         mode = video_to_mode[video_name]
                                         dataset_dict['FaceForensics++'][ff_dict[label]][mode][compression_level][video_name] = {'label': ff_dict[label], 'frames': frame_paths}
-         
+
 
         # get the DeepfakeDetection dataset from FaceForensics++ dataset
         if dataset_name == 'FaceForensics++':
@@ -360,7 +362,7 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
                 elif label == 'fake' and index == 'method_B':
                     label = 'DFDCP_FakeB'
                 else:
-                    raise ValueError(f"wrong in processing vidname {dataset_name}: {line}")
+                    raise ValueError(f"wrong in processing vidname {dataset_name}: {vidname}")
                 set_attr = dataset_info[dataset]['set']  # train, test, val
                 dataset_dict[dataset_name][label][set_attr][vidname] = {'label': label, 'frames': frame_paths}
         # Special case for val data of DFDCP
@@ -439,7 +441,7 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
                 elif video_name in val_txt:
                     set_attr = 'val'
                 else:
-                    raise ValueError(f"wrong in processing vidname {dataset_name}: {line}")
+                    raise ValueError(f"wrong in processing vidname {dataset_name}: {video_name}")
                 label = 'DF_fake'
                 frame_paths = [os.path.join(video_path, frame.name) for frame in os.scandir(video_path)]
                 ## if frame image in frame_paths is not the correct png, skip this frame yxh

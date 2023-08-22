@@ -34,24 +34,29 @@ import argparse
 from logger import create_logger
 
 parser = argparse.ArgumentParser(description='Process some paths.')
-parser.add_argument('--detector_path', type=str, 
+parser.add_argument('--detector_path', type=str,
                     default='/home/zhiyuanyan/disfin/deepfake_benchmark/training/config/detector/ucf.yaml',
                     help='path to detector YAML file')
-parser.add_argument("--train_dataset", nargs="+")
-parser.add_argument("--test_dataset", nargs="+")
+parser.add_argument("--train_dataset",default=None, nargs="*")
+parser.add_argument("--test_dataset",default=None, nargs="*")
 parser.add_argument('--no-save_ckpt', dest='save_ckpt', action='store_false', default=True)
 parser.add_argument('--no-save_feat', dest='save_feat', action='store_false', default=True)
 args = parser.parse_args()
 
 
 def init_seed(config):
-    if config['manualSeed'] is None:
-        config['manualSeed'] = random.randint(1, 10000)
-    random.seed(config['manualSeed'])
-    torch.manual_seed(config['manualSeed'])
-    if config['cuda']:
-        torch.cuda.manual_seed_all(config['manualSeed'])
+    seed = random.randint(1, 10000) if config['manualSeed'] is None else config['manualSeed']
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
 
+    # set cudnn benchmark if needed
+    if config['cudnn']:
+        cudnn.benchmark = True
 
 def prepare_training_data(config):
     # Only use the blending dataset class in training
@@ -68,17 +73,16 @@ def prepare_training_data(config):
         train_set = pairDataset(config)  # Only use the pair dataset class in training
     else:
         train_set = DeepfakeAbstractBaseDataset(
-                    config=config,
-                    mode='train', 
-                )
-    train_data_loader = \
-        torch.utils.data.DataLoader(
-            dataset=train_set,
-            batch_size=config['train_batchSize'],
-            shuffle=True, 
-            num_workers=int(config['workers']),
-            collate_fn=train_set.collate_fn,
-            )
+            config=config,
+            mode='train',
+        )
+    train_data_loader = torch.utils.data.DataLoader(
+        dataset=train_set,
+        batch_size=config['train_batchSize'],
+        shuffle=True,
+        num_workers=int(config['workers']),
+        collate_fn=train_set.collate_fn,
+    )
     return train_data_loader
 
 
@@ -88,14 +92,14 @@ def prepare_testing_data(config):
         config = config.copy()  # create a copy of config to avoid altering the original one
         config['test_dataset'] = [test_name]  # specify the current test dataset
         test_set = DeepfakeAbstractBaseDataset(
-                config=config,
-                mode='test', 
-            )
+            config=config,
+            mode='test',
+        )
         test_data_loader = \
             torch.utils.data.DataLoader(
-                dataset=test_set, 
+                dataset=test_set,
                 batch_size=config['test_batchSize'],
-                shuffle=False, 
+                shuffle=False,
                 num_workers=int(config['workers']),
                 collate_fn=test_set.collate_fn,
             )
@@ -111,40 +115,48 @@ def choose_optimizer(model, config):
     opt_name = config['optimizer']['type']
     if opt_name == 'sgd':
         optimizer = optim.SGD(
-            params=model.parameters(), 
-            lr=config['optimizer'][opt_name]['lr'], 
-            momentum=config['optimizer'][opt_name]['momentum'], 
+            params=model.parameters(),
+            lr=config['optimizer'][opt_name]['lr'],
+            momentum=config['optimizer'][opt_name]['momentum'],
             weight_decay=config['optimizer'][opt_name]['weight_decay']
         )
         return optimizer
     elif opt_name == 'adam':
         optimizer = optim.Adam(
-            params=model.parameters(), 
-            lr=config['optimizer'][opt_name]['lr'], 
+            params=model.parameters(),
+            lr=config['optimizer'][opt_name]['lr'],
             weight_decay=config['optimizer'][opt_name]['weight_decay'],
             betas=(config['optimizer'][opt_name]['beta1'], config['optimizer'][opt_name]['beta2']),
             eps=config['optimizer'][opt_name]['eps'],
             amsgrad=config['optimizer'][opt_name]['amsgrad'],
         )
         return optimizer
+    elif opt_name == 'adamW':
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config['optimizer'][opt_name]['lr'],
+            betas=(config['optimizer'][opt_name]['beta1'], config['optimizer'][opt_name]['beta2']),
+            weight_decay=config['optimizer'][opt_name]['weight_decay']
+        )
+        return optimizer
     else:
         raise NotImplementedError('Optimizer {} is not implemented'.format(config['optimizer']))
-    
+
 
 def choose_scheduler(config, optimizer):
     if config['lr_scheduler'] is None:
         return None
     elif config['lr_scheduler'] == 'step':
         scheduler = optim.lr_scheduler.StepLR(
-            optimizer, 
-            step_size=config['lr_step'], 
+            optimizer,
+            step_size=config['lr_step'],
             gamma=config['lr_gamma'],
         )
         return scheduler
     elif config['lr_scheduler'] == 'cosine':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, 
-            T_max=config['lr_T_max'], 
+            optimizer,
+            T_max=config['lr_T_max'],
             eta_min=config['lr_eta_min'],
         )
         return scheduler
@@ -169,8 +181,10 @@ def main():
         config['train_dataset'] = args.train_dataset
     if args.test_dataset:
         config['test_dataset'] = args.test_dataset
-    config['save_ckpt'] = args.save_ckpt
-    config['save_feat'] = args.save_feat
+    if args.save_ckpt:
+        config['save_ckpt'] = args.save_ckpt
+    if args.save_feat:
+        config['save_feat'] = args.save_feat
 
     # create logger
     logger_path = config['log_dir']
@@ -184,50 +198,46 @@ def main():
     for key, value in config.items():
         params_string += "{}: {}".format(key, value) + "\n"
     logger.info(params_string)
-    
+
     # init seed
     init_seed(config)
 
-    # set cudnn benchmark if needed
-    if config['cudnn']:
-        cudnn.benchmark = True
 
     # prepare the training data loader
     train_data_loader = prepare_training_data(config)
-    
+
     # prepare the testing data loader
     test_data_loaders = prepare_testing_data(config)
-    
+
     # prepare the model (detector)
-    model_class = DETECTOR[config['model_name']]
+    model_class = DETECTOR[config['model']['name']]
     model = model_class(config)
-    
+
     # prepare the optimizer
     optimizer = choose_optimizer(model, config)
-    
+
     # prepare the scheduler
     scheduler = choose_scheduler(config, optimizer)
 
     # prepare the metric
     metric_scoring = choose_metric(config)
-    
+
     # prepare the trainer
     trainer = Trainer(config, model, optimizer, scheduler, logger, metric_scoring)
 
     # start training
     for epoch in range(config['start_epoch'], config['nEpochs'] + 1):
         best_metric = trainer.train_epoch(
-                    epoch=epoch, 
-                    train_data_loader=train_data_loader,
-                    test_data_loaders=test_data_loaders,
-                )
+            epoch=epoch,
+            train_data_loader=train_data_loader,
+            test_data_loaders=test_data_loaders,
+        )
         logger.info(f"===> Epoch[{epoch}] end with testing {metric_scoring}: {best_metric}!")
     logger.info("Stop Training on best Testing metric {}".format(best_metric))
 
     # close the tensorboard writers
     for writer in trainer.writers.values():
         writer.close()
-
 
 
 if __name__ == '__main__':

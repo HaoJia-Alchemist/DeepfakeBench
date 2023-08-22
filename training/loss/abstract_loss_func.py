@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch.nn as nn
 
 class AbstractLossClass(nn.Module):
@@ -5,11 +7,10 @@ class AbstractLossClass(nn.Module):
     def __init__(self):
         super(AbstractLossClass, self).__init__()
 
-    def forward(self, pred, label):
+    def forward(self,  *input: Any):
         """
         Args:
-            pred: prediction of the model
-            label: ground truth label
+            Loss input
             
         Return:
             loss: loss value

@@ -131,14 +131,12 @@ class XceptionDetector(AbstractDetector):
             self.prob.append(
                 pred_dict['prob']
                 .detach()
-                .squeeze()
                 .cpu()
                 .numpy()
             )
             self.label.append(
                 data_dict['label']
                 .detach()
-                .squeeze()
                 .cpu()
                 .numpy()
             )
