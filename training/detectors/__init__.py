@@ -15,3 +15,4 @@ from .recce_detector import RecceDetector
 from .fwa_detector import FWADetector
 from .ffd_detector import FFDDetector
 from .dsmsnlc_detector import DSMSNLCDetector
+from .efficient_only_detector import EfficientOnlyDetector

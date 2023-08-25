@@ -2,12 +2,10 @@
 log_dir: /home/jh/disk/logs/DeepfakeBench
 
 # model setting
-pretrained: /home/jh/disk/pretrained/pretrained/xception-b5690688.pth   # path to a pre-trained model, if using one
-model_name: xception   # model name
-backbone_name: xception  # backbone name
-
-#backbone setting
-backbone_config:
+model:
+  name: xception   # model name
+  pretrained: /home/jh/disk/pretrained/DeepfakeBench/xception-b5690688.pth   # path to a pre-trained model, if using one
+  backbone: xception  # backbone name
   mode: original
   num_classes: 2
   inc: 3
@@ -105,8 +103,8 @@ rec_iter: 100   # interval iterations for recording
 logdir: ./logs   # folder to output images and logs
 manualSeed: 1024   # manual seed for random number generation
 save_ckpt: true   # whether to save checkpoint
-save_feat: true   # whether to save features
-
+save_feat: false   # whether to save features
+save_data_dict: false # whether to save data_dict
 # loss function
 loss_func: cross_entropy   # loss function to use
 losstype: null
@@ -115,6 +113,6 @@ losstype: null
 metric_scoring: auc   # metric for evaluation (auc, acc, eer, ap)
 
 # cuda
-ngpu: 1   # number of GPUs to use
+gpus: [1, 3]   # number of GPUs to use
 cuda: true   # whether to use CUDA acceleration
 cudnn: true   # whether to use CuDNN for convolution operations

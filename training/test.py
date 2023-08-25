@@ -35,14 +35,14 @@ from collections import defaultdict
 
 import argparse
 from logger import create_logger
-
+torch.multiprocessing.set_sharing_strategy('file_system')
 parser = argparse.ArgumentParser(description='Process some paths.')
 parser.add_argument('--detector_path', type=str, 
-                    default='/home/zhiyuanyan/disfin/deepfake_benchmark/training/config/detector/capsule_net.yaml',
+                    default='/home/jh/disk/workspace/DeepfakeBench/training/config/detector/dsmsnlc.yaml',
                     help='path to detector YAML file')
 parser.add_argument("--test_dataset", nargs="+")
 parser.add_argument('--weights_path', type=str, 
-                    default='/mntcephfs/lab_data/yuanxinhang/benchmark_results/logs_final/capsule_new/capsule_net_2023-05-22-13-14-20/test/FaceForensics++/ckpt_epoch_0_best.pth')
+                    default='/home/jh/disk/logs/Deepfake/checkpoints/DSMSNC_nlloss_NTc23_mask/epoch_10.pth')
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -90,7 +90,7 @@ def choose_metric(config):
 
 
 def test_one_dataset(model, data_loader, tsne_dict):
-    for i, data_dict in tqdm(enumerate(data_loader)):
+    for i, data_dict in enumerate(tqdm(data_loader)):
         # get data
         data, label, label_spe, mask, landmark = \
         data_dict['image'], data_dict['label'], data_dict['label_spe'], data_dict['mask'], data_dict['landmark']
@@ -189,7 +189,7 @@ def main():
     test_data_loaders = prepare_testing_data(config)
     
     # prepare the model (detector)
-    model_class = DETECTOR[config['model_name']]
+    model_class = DETECTOR[config['model']['name']]
     model = model_class(config).to(device)
     epoch = 0
     if weights_path:
@@ -212,7 +212,7 @@ def main():
     print("Stop on best Testing metric {}".format(best_metric))
 
     # save tsne
-    with open(os.path.join('/mntcephfs/lab_data/zhiyuanyan/benchmark_results/tsne', f"tsne_dict_{config['model_name']}_{epoch}.pkl"), 'wb') as f:
+    with open(os.path.join(config['log_dir'], f"tsne_dict_{config['model']['name']}_{epoch}.pkl"), 'wb') as f:
         pickle.dump(tsne_dict, f)
     print('===> Save tsne done!')
 

@@ -39,8 +39,9 @@ parser.add_argument('--detector_path', type=str,
                     help='path to detector YAML file')
 parser.add_argument("--train_dataset",default=None, nargs="*")
 parser.add_argument("--test_dataset",default=None, nargs="*")
-parser.add_argument('--no-save_ckpt', dest='save_ckpt', action='store_false', default=True)
-parser.add_argument('--no-save_feat', dest='save_feat', action='store_false', default=True)
+parser.add_argument("--gpus",default=None, nargs="*")
+parser.add_argument('--no-save_ckpt', dest='save_ckpt', action='store_false', default=None)
+parser.add_argument('--no-save_feat', dest='save_feat', action='store_false', default=None)
 args = parser.parse_args()
 
 

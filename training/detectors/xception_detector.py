@@ -57,15 +57,14 @@ class XceptionDetector(AbstractDetector):
         self.backbone = self.build_backbone(config)
         self.loss_func = self.build_loss(config)
         self.prob, self.label = [], []
-        self.correct, self.total = 0, 0
         
     def build_backbone(self, config):
         # prepare the backbone
-        backbone_class = BACKBONE[config['backbone_name']]
-        model_config = config['backbone_config']
+        backbone_class = BACKBONE[config['model']['backbone']]
+        model_config = config['model']
         backbone = backbone_class(model_config)
         # if donot load the pretrained weights, fail to get good results
-        state_dict = torch.load(config['pretrained'])
+        state_dict = torch.load(config['model']['pretrained'])
         for name, weights in state_dict.items():
             if 'pointwise' in name:
                 state_dict[name] = weights.unsqueeze(-1).unsqueeze(-1)
@@ -113,7 +112,9 @@ class XceptionDetector(AbstractDetector):
         # ap
         ap = metrics.average_precision_score(y_true,y_pred)
         # acc
-        acc = self.correct / self.total
+        prediction_class = np.where(y_pred > 0.5, 1, 0)
+        correct = (prediction_class == y_true).sum().item()
+        acc = correct / y_true.size
         # reset the prob and label
         self.prob, self.label = [], []
         return {'acc':acc, 'auc':auc, 'eer':eer, 'ap':ap, 'pred':y_pred, 'label':y_true}
@@ -140,10 +141,5 @@ class XceptionDetector(AbstractDetector):
                 .cpu()
                 .numpy()
             )
-            # deal with acc
-            _, prediction_class = torch.max(pred, 1)
-            correct = (prediction_class == data_dict['label']).sum().item()
-            self.correct += correct
-            self.total += data_dict['label'].size(0)
         return pred_dict
 

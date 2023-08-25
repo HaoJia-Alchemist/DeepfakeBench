@@ -14,7 +14,7 @@ class testDataset(DeepfakeAbstractBaseDataset):
         new_image_list = []
         for im_path in self.image_list:
             new_image_list.append(im_path)
-            domain = im_path.split('/')[7]
+            domain = im_path.split('/')[-5]
             if domain == 'youtube':
                 self.label_spe_list.append(0)
             elif domain == 'Deepfakes':

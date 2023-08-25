@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 @DETECTOR.register_module(module_name='dsmsnlc')
 class DSMSNLCDetector(AbstractDetector):
     def __init__(self, cfg):
-        super(DSMSNLCDetector, self).__init__()
+        super().__init__()
         self.cfg = cfg
         self.loss_func = self.build_loss(cfg)
         self.prob, self.label = [], []
@@ -90,7 +90,8 @@ class DSMSNLCDetector(AbstractDetector):
         # temp_out = torch.concat([temp_rgb_features['b7']], dim=1)
         self.fc = nn.Linear(temp_out.shape[1], 2)
         self.ensemble_classifier_fc = nn.Sequential(nn.Dropout(p=cfg['model']['drop_rate']),
-                                                    nn.Linear(temp_out.shape[1], cfg['model']['mid_dim']), nn.Hardswish(),
+                                                    nn.Linear(temp_out.shape[1], cfg['model']['mid_dim']),
+                                                    nn.Hardswish(),
                                                     nn.Linear(cfg['model']['mid_dim'], cfg['model']['num_classes']))
         self.relu = nn.ReLU(inplace=True)
 
@@ -102,6 +103,12 @@ class DSMSNLCDetector(AbstractDetector):
         loss_class = LOSSFUNC[config['loss_func']]
         loss_func = loss_class()
         return loss_func
+
+    def _norm_feature(self, x):
+        x = self.relu(x)
+        x = F.adaptive_avg_pool2d(x, (1, 1))
+        x = x.view(x.size(0), -1)
+        return x
 
     def features(self, data_dict: dict) -> torch.tensor:
         rgb_features = self.rgb_backbone(data_dict['image'])
@@ -125,10 +132,9 @@ class DSMSNLCDetector(AbstractDetector):
 
     def get_losses(self, data_dict: dict, pred_dict: dict) -> dict:
         label = data_dict['label']
-        mask = data_dict['mask']
+        mask = data_dict['mask'].squeeze(3)
         pred_label = pred_dict['cls']
         pred_nlc = pred_dict['nlc']
-
         loss = self.loss_func(pred_label, pred_nlc, label, mask)
         loss_dict = {'overall': loss}
         return loss_dict
@@ -153,10 +159,13 @@ class DSMSNLCDetector(AbstractDetector):
         # ap
         ap = metrics.average_precision_score(y_true, y_pred)
         # acc
-        acc = self.correct / self.total
+        prediction_class = np.where(y_pred > 0.5, 1, 0)
+        correct = (prediction_class == y_true).sum().item()
+        acc = correct / y_true.size
         # reset the prob and label
         self.prob, self.label = [], []
         return {'acc': acc, 'auc': auc, 'eer': eer, 'ap': ap, 'pred': y_pred, 'label': y_true}
+
 
     def forward(self, data_dict: dict, inference=False) -> dict:
         # get the features by backbone
@@ -182,11 +191,6 @@ class DSMSNLCDetector(AbstractDetector):
                 .cpu()
                 .numpy()
             )
-            # deal with acc
-            _, prediction_class = torch.max(pred, 1)
-            correct = (prediction_class == data_dict['label']).sum().item()
-            self.correct += correct
-            self.total += data_dict['label'].size(0)
         return pred_dict
 
 
@@ -442,7 +446,7 @@ class ChannelGate(nn.Module):
             else:
                 channel_att_sum = channel_att_sum + channel_att_raw
 
-        scale = F.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3).expand_as(x)
+        scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3).expand_as(x)
         return x * scale
 
 
@@ -468,7 +472,7 @@ class SpatialGate(nn.Module):
     def forward(self, x):
         x_compress = self.compress(x)
         x_out = self.spatial(x_compress)
-        scale = F.sigmoid(x_out)  # broadcasting
+        scale = torch.sigmoid(x_out)  # broadcasting
         return x * scale
 
 
@@ -544,7 +548,7 @@ class PostAttention(nn.Module):
         x = x.view(B, 1, C)
         x = self.conv1d(x)
         x = x.view(B, C, 1, 1)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x.expand(B, C, W, H)
 
 
@@ -618,4 +622,4 @@ class NLConsistency(nn.Module):
         x_pe = self.patch_embedding(x)
         x_pe = torch.matmul(x_pe, x_pe.transpose(2, 1)) / self.embed_dim_sqrt
         return x_pe
-        # return F.sigmoid(x_pe)
+        # return torch.sigmoid(x_pe)

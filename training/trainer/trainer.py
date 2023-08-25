@@ -148,7 +148,8 @@ class Trainer(object):
         ):
 
         self.logger.info("===> Epoch[{}] start!".format(epoch))
-        test_step = len(train_data_loader) // 10    # test 10 times per epoch
+        test_step = len(train_data_loader) // 2    # test 10 times per epoch
+        # test_step = 1
         step_cnt = epoch * len(train_data_loader)
 
         if self.config['save_data_dict']:
@@ -160,7 +161,7 @@ class Trainer(object):
         train_recorder_loss = defaultdict(Recorder)
         train_recorder_metric = defaultdict(Recorder)
 
-        for iteration, data_dict in tqdm(enumerate(train_data_loader)):
+        for iteration, data_dict in enumerate(tqdm(train_data_loader)):
             self.setTrain()
 
             # get data
@@ -184,7 +185,10 @@ class Trainer(object):
             predictions = self.model(data_dict)
 
             # compute all losses for each batch data
-            losses = self.model.get_losses(data_dict, predictions)
+            if len(self.config['gpus']) > 1:
+                losses = self.model.module.get_losses(data_dict, predictions)
+            else:
+                losses = self.model.get_losses(data_dict, predictions)
 
             # gradient backpropagation
             losses['overall'].backward()
@@ -197,7 +201,10 @@ class Trainer(object):
                 self.scheduler.step()
 
             # compute training metric for each batch data
-            batch_metrics = self.model.get_train_metrics(data_dict, predictions)
+            if len(self.config['gpus']) > 1:
+                batch_metrics = self.model.module.get_train_metrics(data_dict, predictions)
+            else:
+                batch_metrics = self.model.get_train_metrics(data_dict, predictions)
 
             # store data by recorder
             ## store metric
@@ -253,7 +260,7 @@ class Trainer(object):
     def test_one_dataset(self, data_loader):
         # define test recorder
         test_recorder_loss = defaultdict(Recorder)
-        for i, data_dict in tqdm(enumerate(data_loader)):
+        for i, data_dict in enumerate(tqdm(data_loader)):
             # get data
             data, label, mask, landmark = \
             data_dict['image'], data_dict['label'], data_dict['mask'], data_dict['landmark']
@@ -273,7 +280,10 @@ class Trainer(object):
             predictions = self.inference(data_dict)
 
             # compute all losses for each batch data
-            losses = self.model.get_losses(data_dict, predictions)
+            if len(self.config['gpus']) > 1:
+                losses = self.model.module.get_losses(data_dict, predictions)
+            else:
+                losses = self.model.get_losses(data_dict, predictions)
 
             # store data by recorder
             for name, value in losses.items():
@@ -294,15 +304,20 @@ class Trainer(object):
         keys = test_data_loaders.keys()
         for key in keys:
             # save the testing data_dict
-            data_dict = test_data_loaders[key].dataset.data_dict
-            self.save_data_dict('test', data_dict, key)
+            if self.config['save_data_dict']:
+                data_dict = test_data_loaders[key].dataset.data_dict
+                self.save_data_dict('test', data_dict, key)
 
             # compute loss for each dataset
             losses_one_dataset_recorder, predictions_dict = self.test_one_dataset(test_data_loaders[key])
             losses_all_datasets[key] = losses_one_dataset_recorder
 
             # compute metric for each dataset
-            metric_one_dataset = self.model.get_test_metrics()
+            if len(self.config['gpus']) > 1:
+                metric_one_dataset = self.model.module.get_test_metrics()
+            else:
+                metric_one_dataset = self.model.get_test_metrics()
+
             metrics_all_datasets[key] = metric_one_dataset
 
             # FIXME: ugly, need to be modified
@@ -356,5 +371,8 @@ class Trainer(object):
 
     @torch.no_grad()
     def inference(self, data_dict):
-        predictions = self.model(data_dict, inference=True)
+        if len(self.config['gpus']) > 1:
+            predictions = self.model.module(data_dict, inference=True)
+        else:
+            predictions = self.model(data_dict, inference=True)
         return predictions
