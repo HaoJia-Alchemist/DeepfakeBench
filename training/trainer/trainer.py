@@ -52,10 +52,7 @@ class Trainer(object):
         # get current time
         self.timenow = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         # create directory path
-        self.log_dir = os.path.join(
-            self.config['log_dir'],
-            self.config['model']['name'] + '_' + self.timenow
-        )
+        self.log_dir = self.config['log_dir']
         os.makedirs(self.log_dir, exist_ok=True)
 
     def get_writer(self, phase, dataset_key, metric_key):

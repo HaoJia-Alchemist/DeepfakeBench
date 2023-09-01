@@ -1,14 +1,10 @@
 # log dir 
-log_dir: /home/jh/disk1/logs/DeepfakeBench/dsmsnlc
-
+log_dir: /home/jh/disk1/logs/DeepfakeBench/rgbmsnlc
+task_name: tgbmsnlc_FF-NT_raw
 # model setting
 model:
-  name: dsmsnlc   # model name
+  name: rgbmsnlc   # model name
   backbone: efficientnet-b4  # backbone name
-  noise_extractor: # Noise extractor definition
-    name: srm  # Noise extractor name: noise_print++, srm, bayarconv
-    np_weights: /home/jh/disk/pretrained/DeepfakeDetection/dncnn.pth  # Noise Print++ weights path
-    out_channels: 3 # Noise Channels
   dcam: # Dual channels attention module definition
     name: dcbam  # Dual channels attention module name: dcbam, dca
   multi_scale: [ b1, b3, b7 ] # Multi-scale definition
@@ -17,6 +13,7 @@ model:
   mid_dim: 256 # Model mid_dim
   num_classes: 2 # Model class num
   drop_rate: 0.4 # Model drop out rate
+  attention_num: 8 # Model attention num
 
 # dataset
 all_dataset: [ FaceForensics++, FF-F2F, FF-DF, FF-FS, FF-NT, FaceShifter, DeepFakeDetection, Celeb-DF-v1, Celeb-DF-v2, DFDCP, DFDC, DeeperForensics-1.0, UADFV ]
@@ -27,7 +24,7 @@ save_ckpt: true   # whether to save checkpoint
 save_feat: false   # whether to save features
 save_data_dict: false # whether to save data dict
 
-compression: c23  # compression-level for videos
+compression: raw  # compression-level for videos
 train_batchSize: 30   # training batch size
 test_batchSize: 60   # test batch size
 workers: 15   # number of data loading workers
@@ -130,6 +127,6 @@ losstype: null
 metric_scoring: auc   # metric for evaluation (auc, acc, eer, ap)
 
 # cuda
-gpus: [0, 1]   # number of GPUs to use
+gpus: [1, 2]   # number of GPUs to use
 cuda: true   # whether to use CUDA acceleration
 cudnn: true   # whether to use CuDNN for convolution operations

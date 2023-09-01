@@ -26,6 +26,7 @@ from dataset.abstract_dataset import DeepfakeAbstractBaseDataset
 from dataset.ff_blend import FFBlendDataset
 from dataset.fwa_blend import FWABlendDataset
 from dataset.pair_dataset import pairDataset
+from dataset.dsmsnlc_dataset import DSMSNLCDataset
 
 from trainer.trainer import Trainer
 from detectors import DETECTOR
@@ -39,7 +40,8 @@ parser.add_argument('--detector_path', type=str,
                     help='path to detector YAML file')
 parser.add_argument("--train_dataset",default=None, nargs="*")
 parser.add_argument("--test_dataset",default=None, nargs="*")
-parser.add_argument("--gpus",default=None, nargs="*")
+parser.add_argument("--gpus",type=int,default=None, nargs="*")
+parser.add_argument("--task_name",default=None)
 parser.add_argument('--no-save_ckpt', dest='save_ckpt', action='store_false', default=None)
 parser.add_argument('--no-save_feat', dest='save_feat', action='store_false', default=None)
 args = parser.parse_args()
@@ -72,6 +74,8 @@ def prepare_training_data(config):
             )
     elif 'dataset_type' in config and config['dataset_type'] == 'pair':
         train_set = pairDataset(config)  # Only use the pair dataset class in training
+    elif 'dataset_type' in config and config['dataset_type'] == 'dsmsnlc':
+        train_set = DSMSNLCDataset(config)
     else:
         train_set = DeepfakeAbstractBaseDataset(
             config=config,
@@ -186,12 +190,15 @@ def main():
         config['save_ckpt'] = args.save_ckpt
     if args.save_feat:
         config['save_feat'] = args.save_feat
-
+    if args.gpus:
+        config['gpus'] = args.gpus
+    if args.task_name:
+        config['task_name'] = args.task_name
     # create logger
-    logger_path = config['log_dir']
-    os.makedirs(logger_path, exist_ok=True)
-    logger = create_logger(os.path.join(logger_path, 'training.log'))
-    logger.info('Save log to {}'.format(logger_path))
+    config['log_dir'] = os.path.join(config['log_dir'], f"{config['task_name']}_train_{time.strftime('%Y%m%d%H%M%S')}")
+    os.makedirs(config['log_dir'], exist_ok=True)
+    logger = create_logger(os.path.join(config['log_dir'], 'train.log'))
+    logger.info('Save log to {}'.format(config['log_dir']))
 
     # print configuration
     logger.info("--------------- Configuration ---------------")

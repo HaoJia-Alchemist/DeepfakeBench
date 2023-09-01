@@ -19,7 +19,7 @@ class DSMSNLCLoss(AbstractLossClass):
         mask = F.adaptive_max_pool2d(mask, (size, size))
         mask = 1 - torch.abs(
             einops.rearrange(mask, 'b w h -> b (w h) 1') - einops.rearrange(mask, 'b w h -> b 1 (w h)'))
-        loss = F.binary_cross_entropy_with_logits(nlc, mask)
+        loss = F.binary_cross_entropy(nlc, mask.float())
         return loss
 
     def forward(self, pred_label, pred_nlc, label, mask):

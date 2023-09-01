@@ -24,7 +24,7 @@ import numpy as np
 from sklearn import metrics
 from typing import Union
 from collections import defaultdict
-
+from torch.nn.modules.utils import _pair, _quadruple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -43,8 +43,8 @@ from .efficientnet import EfficientNet
 logger = logging.getLogger(__name__)
 
 
-@DETECTOR.register_module(module_name='dsmsnlc')
-class DSMSNLCDetector(AbstractDetector):
+@DETECTOR.register_module(module_name='rgbmsnlc')
+class RGBMSNLCDetector(AbstractDetector):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -53,48 +53,68 @@ class DSMSNLCDetector(AbstractDetector):
         self.correct, self.total = 0, 0
 
         temp_rgb = torch.randn(2, 3, cfg['resolution'], cfg['resolution'])
-        __noise_extractor_factory = {
-            'srm': SRM,
-            'noise_print++': NoisePrintPP,
-            'bayarconv': BayarConv2d
-        }
-        # Noise extractor
-        self.noise_extractor = __noise_extractor_factory[cfg['model']['noise_extractor']['name']](cfg)
-        temp_noise = self.noise_extractor(temp_rgb)
         # Backbone
         if 'efficientnet' in cfg['model']['backbone']:
             self.rgb_backbone = EfficientNet.from_pretrained(cfg['model']['backbone'], advprop=True,
                                                              num_classes=cfg['model']['num_classes'])
-            temp_rgb_features = self.rgb_backbone(temp_rgb)
-            self.noise_backbone = EfficientNet.from_pretrained(cfg['model']['backbone'], advprop=True,
-                                                               num_classes=cfg['model']['num_classes'])
-            temp_noise_features = self.noise_backbone(temp_noise)
         else:
             raise ValueError("Unsupported Backbone!")
+
+        self.self_enhancement = nn.ModuleDict()
         self.nl_consistency = nn.ModuleDict()
-        temp_out = {}
+        temp_layers = {}
+        start_stage = ""
+        temp_layers[''] = temp_rgb
+        temp_nlc = {}
+        # Top-down
         for feature_layer, patch_size in zip(cfg['model']['multi_scale'], cfg['model']['patch_size']):
-            dcam = DCAM(cfg, temp_rgb_features[feature_layer].shape[1])
-            temp_dcamed = dcam((temp_rgb_features[feature_layer], temp_noise_features[feature_layer]))
+            end_stage = feature_layer
+            self.backbone_forward(temp_layers[start_stage], temp_layers, start_stage, end_stage)
+            self.self_enhancement[end_stage] = SelfEnhancement(temp_layers[end_stage].shape[1])
+            temp_layers[end_stage] = self.self_enhancement[end_stage](temp_layers[end_stage])
+            # update stage flag
+            start_stage = end_stage
+
+        # Bottom-up
+        self.attention = nn.ModuleDict()
+        last_stage = ""
+        for feature_layer, patch_size in zip(cfg['model']['multi_scale'][::-1], cfg['model']['patch_size'][::-1]):
+            if last_stage != "":
+                B, C, W, H = temp_layers[feature_layer].shape
+                patch_w = W // patch_size
+                up_sample_attention = temp_nlc[last_stage].view(temp_nlc[last_stage].shape[0],
+                                                               temp_nlc[last_stage].shape[1], patch_w, patch_w)
+                self.attention[feature_layer] = AttentionModule(up_sample_attention.shape[1],
+                                                                cfg['model']['attention_num'])
+                up_sample_attention = self.attention[feature_layer](up_sample_attention)
+                up_sample_attention = nn.functional.interpolate(up_sample_attention,
+                                                                scale_factor=patch_size,
+                                                                mode='bilinear')
+                temp_layers[feature_layer] = torch.einsum("bcwh, bdwh -> bcdwh", temp_layers[feature_layer],
+                                                          up_sample_attention)
+                temp_layers[feature_layer] = temp_layers[feature_layer].view(B, -1, W, H)
+
+            dcam = DCAM(cfg, temp_layers[feature_layer].shape[1])
+            temp_dcamed = dcam((temp_layers[feature_layer], temp_layers[feature_layer]))
             self.nl_consistency[feature_layer] = nn.Sequential(
                 dcam,
                 NLConsistency(temp_dcamed.shape[2], temp_dcamed.shape[1], patch_size)
             )
-            temp_out[feature_layer] = self.nl_consistency[feature_layer](
-                (temp_rgb_features[feature_layer], temp_noise_features[feature_layer]))
+            temp_nlc[feature_layer] = self.nl_consistency[feature_layer](
+                (temp_layers[feature_layer], temp_layers[feature_layer])
+            )
+            last_stage = feature_layer
+        self.backbone_forward(temp_layers[start_stage], temp_layers, start_stage, end_stage='b7', final=True)
         temp_out = torch.concat(
-            [i.reshape((i.shape[0], i.shape[1], int(math.sqrt(i.shape[2])), -1)) for i in temp_out.values()],
+            [i.reshape((i.shape[0], i.shape[1], int(math.sqrt(i.shape[2])), -1)) for i in temp_nlc.values()],
             dim=1)
-        temp_out = torch.concat([temp_out, temp_rgb_features['b7']], dim=1)
-        # temp_out = torch.concat([temp_rgb_features['b7'], temp_noise_features['b7']], dim=1)
-        # temp_out = torch.concat([temp_rgb_features['b7']], dim=1)
+        temp_out = torch.concat([temp_out, temp_layers['final']], dim=1)
         self.fc = nn.Linear(temp_out.shape[1], 2)
         self.ensemble_classifier_fc = nn.Sequential(nn.Dropout(p=cfg['model']['drop_rate']),
                                                     nn.Linear(temp_out.shape[1], cfg['model']['mid_dim']),
                                                     nn.Hardswish(),
                                                     nn.Linear(cfg['model']['mid_dim'], cfg['model']['num_classes']))
         self.relu = nn.ReLU(inplace=True)
-
     def build_backbone(self, config):
         pass
 
@@ -110,21 +130,73 @@ class DSMSNLCDetector(AbstractDetector):
         x = x.view(x.size(0), -1)
         return x
 
+    def backbone_forward(self, x, layers, start_stage='', end_stage='b7', final=False):
+        """ Returns output of the final convolution layer """
+        if start_stage is '':
+            # Stem
+            x = self.rgb_backbone._swish(self.rgb_backbone._bn0(self.rgb_backbone._conv_stem(x)))
+            layers['b0'] = x
+        stage_idx = (self.rgb_backbone.stage_map.index(start_stage),
+                     self.rgb_backbone.stage_map.index(end_stage))
+        # Blocks
+        for idx, block in enumerate(self.rgb_backbone._blocks):
+            if (idx <= stage_idx[0] and start_stage != '') or idx > stage_idx[1]:
+                continue
+            drop_connect_rate = self.rgb_backbone._global_params.drop_connect_rate
+            if drop_connect_rate:
+                drop_connect_rate *= float(idx) / len(self.rgb_backbone._blocks)
+            x = block(x, drop_connect_rate=drop_connect_rate)
+            stage = self.rgb_backbone.stage_map[idx]
+            if stage:
+                layers[stage] = x
+                if stage == self.rgb_backbone.escape:
+                    return None
+        if final:
+            # Head
+            x = self.rgb_backbone._bn1(self.rgb_backbone._conv_head(x))
+            x = self.rgb_backbone._swish(x)
+            layers['final'] = x
+        return x
+
     def features(self, data_dict: dict) -> torch.tensor:
-        rgb_features = self.rgb_backbone(data_dict['image'])
-        noise = self.noise_extractor(data_dict['image'])
-        noise_features = self.noise_backbone(noise)
+        layers = {}
         nlc = {}
-        for feature_layer in self.cfg['model']['multi_scale']:
+        layers[''] = data_dict['image']
+        start_stage = ""
+        # Top-down
+        for feature_layer, patch_size in zip(self.cfg['model']['multi_scale'], self.cfg['model']['patch_size']):
+            end_stage = feature_layer
+            self.backbone_forward(layers[start_stage], layers, start_stage, end_stage)
+            layers[end_stage] = self.self_enhancement[end_stage](layers[end_stage])
+            # update stage flag
+            start_stage = end_stage
+        self.backbone_forward(layers[start_stage], layers, start_stage, end_stage='b7', final=True)
+        # Bottom-up
+        last_stage = ""
+        for feature_layer, patch_size in zip(self.cfg['model']['multi_scale'][::-1],
+                                             self.cfg['model']['patch_size'][::-1]):
+            if last_stage != "":
+                B, C, W, H = layers[feature_layer].shape
+                patch_w = W // patch_size
+                up_sample_attention = nlc[last_stage].view(nlc[last_stage].shape[0],
+                                                           nlc[last_stage].shape[1], patch_w, patch_w)
+                up_sample_attention = self.attention[feature_layer](up_sample_attention)
+                up_sample_attention = nn.functional.interpolate(up_sample_attention,
+                                                                scale_factor=patch_size,
+                                                                mode='bilinear')
+                layers[feature_layer] = torch.einsum("bcwh, bdwh -> bcdwh", layers[feature_layer],
+                                                     up_sample_attention)
+                layers[feature_layer] = layers[feature_layer].view(B, -1, W, H)
             nlc[feature_layer] = self.nl_consistency[feature_layer](
-                (rgb_features[feature_layer], noise_features[feature_layer]))
+                (layers[feature_layer], layers[feature_layer])
+            )
+            last_stage = feature_layer
         features = torch.concat(
             [i.reshape((i.shape[0], i.shape[1], int(math.sqrt(i.shape[2])), -1)) for i in nlc.values()], dim=1)
         # final = rgb_features['final']
-        features = torch.concat([features, rgb_features['b7']], dim=1)
+        features = torch.concat([features, layers['final']], dim=1)
         # final = torch.concat([rgb_features['b7']], dim=1)
         features = self._norm_feature(features)
-
         return features, nlc
 
     def classifier(self, features: torch.tensor) -> torch.tensor:
@@ -165,7 +237,6 @@ class DSMSNLCDetector(AbstractDetector):
         # reset the prob and label
         self.prob, self.label = [], []
         return {'acc': acc, 'auc': auc, 'eer': eer, 'ap': ap, 'pred': y_pred, 'label': y_true}
-
 
     def forward(self, data_dict: dict, inference=False) -> dict:
         # get the features by backbone
@@ -623,3 +694,92 @@ class NLConsistency(nn.Module):
         x_pe = torch.matmul(x_pe, x_pe.transpose(2, 1)) / self.embed_dim_sqrt
         # return x_pe
         return torch.sigmoid(x_pe)
+
+
+# ================ Self Enhancement # ================
+
+class MedianPool2d(nn.Module):
+    """ Median pool (usable as median filter when stride=1) module.
+
+    Args:
+         kernel_size: size of pooling kernel, int or 2-tuple
+         stride: pool stride, int or 2-tuple
+         padding: pool padding, int or 4-tuple (l, r, t, b) as in pytorch F.pad
+         same: override padding and enforce same padding, boolean
+    """
+
+    def __init__(self, kernel_size=3, stride=1, padding=1, same=False):
+        super(MedianPool2d, self).__init__()
+        self.k = _pair(kernel_size)
+        self.stride = _pair(stride)
+        self.padding = _quadruple(padding)  # convert to l, r, t, b
+        self.same = same
+
+    def _padding(self, x):
+        if self.same:
+            ih, iw = x.size()[2:]
+            if ih % self.stride[0] == 0:
+                ph = max(self.k[0] - self.stride[0], 0)
+            else:
+                ph = max(self.k[0] - (ih % self.stride[0]), 0)
+            if iw % self.stride[1] == 0:
+                pw = max(self.k[1] - self.stride[1], 0)
+            else:
+                pw = max(self.k[1] - (iw % self.stride[1]), 0)
+            pl = pw // 2
+            pr = pw - pl
+            pt = ph // 2
+            pb = ph - pt
+            padding = (pl, pr, pt, pb)
+        else:
+            padding = self.padding
+        return padding
+
+    def forward(self, x):
+        # using existing pytorch functions and tensor ops so that we get autograd,
+        # would likely be more efficient to implement from scratch at C/Cuda level
+        x = F.pad(x, self._padding(x), mode='reflect')
+        x = x.unfold(2, self.k[0], self.stride[0]).unfold(3, self.k[1], self.stride[1])
+        x = x.contiguous().view(x.size()[:4] + (-1,)).median(dim=-1)[0]
+        return x
+
+
+class SelfEnhancement(nn.Module):
+    def __init__(self, in_channels, CA=False):
+        super(SelfEnhancement, self).__init__()
+        self.CA = CA
+        self.median_filter = MedianPool2d()
+        self.sigmoid = nn.Sigmoid()
+        self.conv2d = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1)
+        if self.CA:
+            self.gap = nn.AdaptiveAvgPool2d(output_size=1)
+            self.gmp = nn.AdaptiveMaxPool2d(output_size=1)
+            self.mlp = nn.Sequential(
+                nn.Conv2d(in_channels=in_channels, out_channels=256, kernel_size=1),
+                nn.BatchNorm2d(256),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(in_channels=256, out_channels=in_channels, kernel_size=1),
+                nn.BatchNorm2d(in_channels),
+            )
+
+    def forward(self, x):
+        tmp = x - self.median_filter(x)  # noi = x - M(x)
+        tmp = x + self.conv2d(self.sigmoid(tmp))  # ne = x + Conv(sigmoid(noi))
+        if self.CA:
+            tmp = x + tmp * self.sigmoid(
+                self.mlp(self.gap(tmp) + self.gmp(tmp)))  # out = x + ne * sigmoid(MLP(GAP(ne) + GMP(ne)))
+        return tmp
+
+
+# ================ Attention Module # ================
+class AttentionModule(nn.Module):
+    def __init__(self, in_channels=144, out_channels=8):
+        super(AttentionModule, self).__init__()
+        self.attention_block = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.attention_block(x)
