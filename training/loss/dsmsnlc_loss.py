@@ -26,4 +26,6 @@ class DSMSNLCLoss(AbstractLossClass):
         loss = F.cross_entropy(pred_label, label)
         for i in pred_nlc.values():
             loss += self.dsmsnlc_loss(i, mask)
+        if loss <= 0:
+            print("error")
         return loss

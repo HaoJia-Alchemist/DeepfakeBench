@@ -27,6 +27,8 @@ from dataset.ff_blend import FFBlendDataset
 from dataset.fwa_blend import FWABlendDataset
 from dataset.pair_dataset import pairDataset
 from dataset.dsmsnlc_dataset import DSMSNLCDataset
+from dataset.rgbmsnlc_dataset import RGBMSNLCDataset
+from dataset.test_dataset import testDataset
 
 from trainer.trainer import Trainer
 from detectors import DETECTOR
@@ -38,12 +40,13 @@ parser = argparse.ArgumentParser(description='Process some paths.')
 parser.add_argument('--detector_path', type=str,
                     default='/home/zhiyuanyan/disfin/deepfake_benchmark/training/config/detector/ucf.yaml',
                     help='path to detector YAML file')
-parser.add_argument("--train_dataset",default=None, nargs="*")
-parser.add_argument("--test_dataset",default=None, nargs="*")
-parser.add_argument("--gpus",type=int,default=None, nargs="*")
-parser.add_argument("--task_name",default=None)
+parser.add_argument("--train_dataset", default=None, nargs="*")
+parser.add_argument("--test_dataset", default=None, nargs="*")
+parser.add_argument("--gpus", type=int, default=None, nargs="*")
+parser.add_argument("--task_name", default=None)
 parser.add_argument('--no-save_ckpt', dest='save_ckpt', action='store_false', default=None)
 parser.add_argument('--no-save_feat', dest='save_feat', action='store_false', default=None)
+parser.add_argument('--compression', default=None)
 args = parser.parse_args()
 
 
@@ -61,6 +64,7 @@ def init_seed(config):
     if config['cudnn']:
         cudnn.benchmark = True
 
+
 def prepare_training_data(config):
     # Only use the blending dataset class in training
     if 'dataset_type' in config and config['dataset_type'] == 'blend':
@@ -76,6 +80,8 @@ def prepare_training_data(config):
         train_set = pairDataset(config)  # Only use the pair dataset class in training
     elif 'dataset_type' in config and config['dataset_type'] == 'dsmsnlc':
         train_set = DSMSNLCDataset(config)
+    elif 'dataset_type' in config and config['dataset_type'] == 'rgbmsnlc_dataset':
+        train_set = RGBMSNLCDataset(config)
     else:
         train_set = DeepfakeAbstractBaseDataset(
             config=config,
@@ -96,7 +102,7 @@ def prepare_testing_data(config):
         # update the config dictionary with the specific testing dataset
         config = config.copy()  # create a copy of config to avoid altering the original one
         config['test_dataset'] = [test_name]  # specify the current test dataset
-        test_set = DeepfakeAbstractBaseDataset(
+        test_set = testDataset(
             config=config,
             mode='test',
         )
@@ -194,6 +200,8 @@ def main():
         config['gpus'] = args.gpus
     if args.task_name:
         config['task_name'] = args.task_name
+    if args.compression:
+        config['compression'] = args.compression
     # create logger
     config['log_dir'] = os.path.join(config['log_dir'], f"{config['task_name']}_train_{time.strftime('%Y%m%d%H%M%S')}")
     os.makedirs(config['log_dir'], exist_ok=True)
@@ -209,7 +217,6 @@ def main():
 
     # init seed
     init_seed(config)
-
 
     # prepare the training data loader
     train_data_loader = prepare_training_data(config)
@@ -229,19 +236,19 @@ def main():
 
     # prepare the metric
     metric_scoring = choose_metric(config)
-
     # prepare the trainer
     trainer = Trainer(config, model, optimizer, scheduler, logger, metric_scoring)
 
     # start training
     for epoch in range(config['start_epoch'], config['nEpochs'] + 1):
-        best_metric = trainer.train_epoch(
+        test_metrics_all_datasets = trainer.train_epoch(
             epoch=epoch,
             train_data_loader=train_data_loader,
             test_data_loaders=test_data_loaders,
         )
-        logger.info(f"===> Epoch[{epoch}] end with testing {metric_scoring}: {best_metric}!")
-    logger.info("Stop Training on best Testing metric {}".format(best_metric))
+        logger.info(f"===> Epoch[{epoch}] end with testing {metric_scoring}: {test_metrics_all_datasets}!")
+    logger.info("Stop Training on best Testing metric {}".format(
+        {k: dict(v) for k, v in trainer.best_metrics_all_time.items()}))
 
     # close the tensorboard writers
     for writer in trainer.writers.values():

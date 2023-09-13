@@ -38,14 +38,15 @@ from logger import create_logger
 torch.multiprocessing.set_sharing_strategy('file_system')
 parser = argparse.ArgumentParser(description='Process some paths.')
 parser.add_argument('--detector_path', type=str, 
-                    default='/home/jh/disk/workspace/DeepfakeBench/training/config/detector/dsmsnlc.yaml',
+                    default='/home/jh/disk/workspace/DeepfakeBench/training/config/detector/rgbmsnlc.yaml',
                     help='path to detector YAML file')
 parser.add_argument("--test_dataset", nargs="+")
 parser.add_argument('--weights_path', type=str, 
-                    default='/home/jh/disk/logs/Deepfake/checkpoints/DSMSNC_nlloss_NTc23_mask/epoch_10.pth')
+                    default='/home/jh/disk/logs/DeepfakeBench/rgbmsnlc/rgbmsnlc_DA_FF_all_c23_train_20230910191400/test/FaceForensics++/ckpt_best.pth')
+parser.add_argument("--device_id", type=str, default='3')
 args = parser.parse_args()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device(f"cuda:{args.device_id}" if torch.cuda.is_available() else "cpu")
 
 
 def init_seed(config):
@@ -143,7 +144,6 @@ def test_epoch(model, test_data_loaders):
         for k, v in metric_one_dataset.items():
             metric_str += f"testing-metric, {k}: {v}    "
         print(metric_str)
-        tqdm.write(metric_str)
 
     # print(f"before concat, feat shape is: {tsne_dict['feat'].shape}, label is: {tsne_dict['label_spe']}")
     tsne_dict['feat'] = np.concatenate(tsne_dict['feat'], axis=0)

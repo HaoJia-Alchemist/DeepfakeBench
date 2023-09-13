@@ -212,7 +212,7 @@ class Trainer(object):
                 train_recorder_loss[name].update(value)
 
             # run tensorboard to visualize the training process
-            if iteration % 300 == 0:
+            if iteration % 100 == 0:
 
                 # info for loss
                 loss_str = f"Iter: {step_cnt}    "
@@ -245,14 +245,14 @@ class Trainer(object):
             if (step_cnt+1) % test_step == 0:
                 if test_data_loaders is not None:
                     self.logger.info("===> Test start!")
-                    test_best_metric = self.test_epoch(
+                    test_metrics_all_datasets = self.test_epoch(
                         epoch,
                         iteration,
                         test_data_loaders,
                         step_cnt,
                     )
             step_cnt += 1
-        return test_best_metric
+        return test_metrics_all_datasets
 
     def test_one_dataset(self, data_loader):
         # define test recorder
@@ -295,7 +295,6 @@ class Trainer(object):
         # define test recorder
         losses_all_datasets = {}
         metrics_all_datasets = {}
-        best_metrics_per_dataset = defaultdict(dict)  # best metric for each dataset, for each metric
 
         # testing for all test data
         keys = test_data_loaders.keys()
@@ -364,7 +363,7 @@ class Trainer(object):
                 writer.add_scalar(f'test_metrics/{k}', v, global_step=step)
 
         self.logger.info('===> Test Done!')
-        return best_metrics_per_dataset  # return all types of mean metrics for determining the best ckpt
+        return metrics_all_datasets  # return all types of mean metrics for determining the best ckpt
 
     @torch.no_grad()
     def inference(self, data_dict):

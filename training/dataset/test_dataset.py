@@ -29,7 +29,7 @@ class testDataset(DeepfakeAbstractBaseDataset):
                 self.label_spe_list.append(6)  # real
             elif domain == 'actors':
                 self.label_spe_list.append(5)  # fake
-            elif domain == 'frames' and im_path.split('/')[5] == 'Celeb-DF-v2':
+            elif domain == 'Celeb-DF-v2':
                 if 'Celeb-real' in im_path:
                     self.label_spe_list.append(7)
                 else:

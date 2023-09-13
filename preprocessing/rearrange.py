@@ -306,8 +306,10 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
                 continue
             if folder.name in ['Celeb-real', 'YouTube-real']:
                 label = 'CelebDFv2_real'
-            else:
+            elif folder.name in ['Celeb-synthesis']:
                 label = 'CelebDFv2_fake'
+            else:
+                continue
             assert label in ['CelebDFv2_real', 'CelebDFv2_fake'], 'Invalid label: {}'.format(label)
             dataset_dict[dataset_name][label] = {}
             dataset_dict[dataset_name][label]['train'] = {}

@@ -107,9 +107,11 @@ class EfficientDetector(AbstractDetector):
         fnr = 1 - tpr
         eer = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
         # ap
-        ap = metrics.average_precision_score(y_true,y_pred)
+        ap = metrics.average_precision_score(y_true, y_pred)
         # acc
-        acc = self.correct / self.total
+        prediction_class = np.where(y_pred > 0.5, 1, 0)
+        correct = (prediction_class == y_true).sum().item()
+        acc = correct / y_true.size
         # reset the prob and label
         self.prob, self.label = [], []
         return {'acc':acc, 'auc':auc, 'eer':eer, 'ap':ap, 'pred':y_pred, 'label':y_true}
@@ -138,10 +140,5 @@ class EfficientDetector(AbstractDetector):
                 .cpu()
                 .numpy()
             )
-            # deal with acc
-            _, prediction_class = torch.max(pred, 1)
-            correct = (prediction_class == data_dict['label']).sum().item()
-            self.correct += correct
-            self.total += data_dict['label'].size(0)
         return pred_dict
 
