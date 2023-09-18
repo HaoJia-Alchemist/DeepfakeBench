@@ -67,8 +67,11 @@ class DeepfakeAbstractBaseDataset(data.Dataset):
         self.dataset_list = dataset_list
 
         # Collect image and label lists
-        image_list, label_list = self.collect_img_and_label(dataset_list)
-        self.image_list, self.label_list = image_list, label_list
+        self.image_list, self.label_list = self.collect_img_and_label(dataset_list)
+
+        # Make real fake balance
+        if self.config['balance_data'] and mode=='train':
+            self.image_list, self.label_list = self.make_balance(self.image_list, self.label_list)
 
         # Create a dictionary containing the image and label lists
         self.data_dict = {
@@ -438,6 +441,17 @@ class DeepfakeAbstractBaseDataset(data.Dataset):
         """
         assert len(self.image_list) == len(self.label_list), 'Number of images and labels are not equal'
         return len(self.image_list)
+
+    def make_balance(self, img_list, label_list):
+        tr = list(filter(lambda x: x[1] == 0, zip(img_list, label_list)))
+        tf = list(filter(lambda x: x[1] == 1, zip(img_list, label_list)))
+        if len(tr) > len(tf):
+            tr, tf = tf, tr
+        rate = len(tf) // len(tr)
+        res = len(tf) - rate * len(tr)
+        tr = tr * rate + random.sample(tr, res)
+        balanced_data = tr + tf
+        return [i[0] for i in balanced_data], [i[1] for i in balanced_data]
 
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@
 eval pretained model.
 """
 import os
+import sys
+
 import numpy as np
 from os.path import join
 import cv2
@@ -10,6 +12,8 @@ import datetime
 import time
 import yaml
 import pickle
+
+from mmengine import DictAction, Config
 from tqdm import tqdm
 from copy import deepcopy
 from PIL import Image as pil_image
@@ -36,14 +40,15 @@ from collections import defaultdict
 import argparse
 from logger import create_logger
 torch.multiprocessing.set_sharing_strategy('file_system')
-parser = argparse.ArgumentParser(description='Process some paths.')
-parser.add_argument('--detector_path', type=str, 
+parser = argparse.ArgumentParser(description='Deepfake Detection Test Args')
+parser.add_argument('--config_file', type=str,
                     default='/home/jh/disk/workspace/DeepfakeBench/training/config/detector/rgbmsnlc.yaml',
                     help='path to detector YAML file')
-parser.add_argument("--test_dataset", nargs="+")
-parser.add_argument('--weights_path', type=str, 
-                    default='/home/jh/disk/logs/DeepfakeBench/rgbmsnlc/rgbmsnlc_DA_FF_all_c23_train_20230910191400/test/FaceForensics++/ckpt_best.pth')
-parser.add_argument("--device_id", type=str, default='3')
+parser.add_argument("--device_id", type=str, default='1')
+parser.add_argument('--checkpoints', type=str,
+                    default='/home/jh/disk/logs/DeepfakeBench/rgbmsnlc/rgbmsnlc_FF_all_c23_aug_train_20230906213436/test/FaceForensics++/ckpt_best.pth')
+parser.add_argument("--opts", action=DictAction, help="Modify config options using the command-line", default=None,
+                        nargs=argparse.REMAINDER)
 args = parser.parse_args()
 
 device = torch.device(f"cuda:{args.device_id}" if torch.cuda.is_available() else "cpu")
@@ -159,18 +164,11 @@ def inference(model, data_dict):
 
 
 def main():
-    # parse options and load config
-    with open(args.detector_path, 'r') as f:
-        config = yaml.safe_load(f)
-
-    weights_path = None
-    # If arguments are provided, they will overwrite the yaml settings
-    if args.test_dataset:
-        config['test_dataset'] = args.test_dataset
-    if args.weights_path:
-        config['weights_path'] = args.weights_path
-        weights_path = args.weights_path
-
+    config = Config.fromfile(args.config_file)
+    if args.opts is not None:
+        config.merge_from_dict(args.opts)
+    if args.checkpoints:
+        config['model']['checkpoints'] = args.checkpoints
     # print configuration
     print("--------------- Configuration ---------------")
     params_string = "Parameters: \n"
@@ -192,17 +190,17 @@ def main():
     model_class = DETECTOR[config['model']['name']]
     model = model_class(config).to(device)
     epoch = 0
-    if weights_path:
+    if config['model']['checkpoints']:
         try:
-            epoch = int(weights_path.split('/')[-1].split('.')[0].split('_')[2])
+            epoch = int(config['model']['checkpoints'].split('/')[-1].split('.')[0].split('_')[2])
         except:
             epoch = 0
-        ckpt = torch.load(weights_path, map_location=device)
+        ckpt = torch.load(config['model']['checkpoints'], map_location=device)
         model.load_state_dict(ckpt, strict=True)
         print('===> Load checkpoint done!')
     else:
         print('Fail to load the pre-trained weights')
-    
+        sys.exit()
     # prepare the metric
     metric_scoring = choose_metric(config)
     

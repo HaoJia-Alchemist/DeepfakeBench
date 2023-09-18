@@ -9,4 +9,4 @@ COMPRESSION=raw
 #python train.py --detector_path $CONFIG_FILE  --train_dataset FF-F2F --gpus ${GPUS[*]} --task_name $TASK_NAME\_F2F_raw
 #python train.py --detector_path $CONFIG_FILE  --train_dataset FF-DF --gpus ${GPUS[*]} --task_name $TASK_NAME\_DF_raw
 #python train.py --detector_path $CONFIG_FILE  --train_dataset FF-FS --gpus ${GPUS[*]} --task_name $TASK_NAME\_FS_raw
-python train.py --detector_path $CONFIG_FILE  --train_dataset FaceForensics++ --gpus ${GPUS[*]} --task_name $TASK_NAME\_all_c23 --compression $COMPRESSION
+python train.py --opts detector_path=$CONFIG_FILE  train_dataset=FaceForensics++ gpus=${GPUS[*]} task_name=$TASK_NAME\_all_c23 compression=$COMPRESSION

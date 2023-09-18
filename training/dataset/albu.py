@@ -32,7 +32,7 @@ class NoiseAugmentation:
                 A.MedianBlur(),
                 A.GaussNoise(),
                 A.ISONoise()
-            ],p=1),
+            ],p=0.5),
             A.OneOf([
                 IsotropicResize(max_side=384, interpolation_down=cv2.INTER_AREA,
                                 interpolation_up=cv2.INTER_CUBIC),
@@ -48,7 +48,7 @@ class NoiseAugmentation:
                 A.HueSaturationValue()
             ], p=0.5),
             A.ImageCompression(quality_lower=40,
-                               quality_upper=100, p=0.5)
+                               quality_upper=100, p=1)
         ])
         return trans
     def noise_aug(self, image, landmark):

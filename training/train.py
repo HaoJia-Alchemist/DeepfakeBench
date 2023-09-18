@@ -36,19 +36,22 @@ from detectors import DETECTOR
 import argparse
 from logger import create_logger
 
-parser = argparse.ArgumentParser(description='Process some paths.')
-parser.add_argument('--detector_path', type=str,
-                    default='/home/zhiyuanyan/disfin/deepfake_benchmark/training/config/detector/ucf.yaml',
+from mmengine.config import Config, DictAction
+
+parser = argparse.ArgumentParser(description='Deepfake Detection Args')
+parser.add_argument('--config_file', type=str,
+                    default=r'training/config/detector/rgbmsnlc.yaml',
                     help='path to detector YAML file')
-parser.add_argument("--train_dataset", default=None, nargs="*")
-parser.add_argument("--test_dataset", default=None, nargs="*")
-parser.add_argument("--gpus", type=int, default=None, nargs="*")
-parser.add_argument("--task_name", default=None)
-parser.add_argument('--no-save_ckpt', dest='save_ckpt', action='store_false', default=None)
-parser.add_argument('--no-save_feat', dest='save_feat', action='store_false', default=None)
-parser.add_argument('--compression', default=None)
+parser.add_argument("--opts", action=DictAction, help="Modify config options using the command-line", default=None,
+                        nargs=argparse.REMAINDER)
 args = parser.parse_args()
 
+
+def mergeConfig(args, config):
+    args = vars(args)
+    args = {k: v for k, v in args.items() if v is not None}
+    config.update(args)
+    return config
 
 def init_seed(config):
     seed = random.randint(1, 10000) if config['manualSeed'] is None else config['manualSeed']
@@ -183,25 +186,9 @@ def choose_metric(config):
 
 
 def main():
-    # parse options and load config
-    with open(args.detector_path, 'r') as f:
-        config = yaml.safe_load(f)
-
-    # If arguments are provided, they will overwrite the yaml settings
-    if args.train_dataset:
-        config['train_dataset'] = args.train_dataset
-    if args.test_dataset:
-        config['test_dataset'] = args.test_dataset
-    if args.save_ckpt:
-        config['save_ckpt'] = args.save_ckpt
-    if args.save_feat:
-        config['save_feat'] = args.save_feat
-    if args.gpus:
-        config['gpus'] = args.gpus
-    if args.task_name:
-        config['task_name'] = args.task_name
-    if args.compression:
-        config['compression'] = args.compression
+    config = Config.fromfile(args.config_file)
+    if args.opts is not None:
+        config.merge_from_dict(args.opts)
     # create logger
     config['log_dir'] = os.path.join(config['log_dir'], f"{config['task_name']}_train_{time.strftime('%Y%m%d%H%M%S')}")
     os.makedirs(config['log_dir'], exist_ok=True)

@@ -1,6 +1,7 @@
 # log dir 
 log_dir: /home/jh/disk1/logs/DeepfakeBench/rgbmsnlc
 task_name: tgbmsnlc_FF-NT_raw
+weights_path: null
 # model setting
 model:
   name: rgbmsnlc   # model name
@@ -84,7 +85,7 @@ data_aug:
   contrast_limit: [ -0.1, 0.1 ]
   quality_lower: 40
   quality_upper: 100
-  noise_aug_prob: 0.6
+  noise_aug_prob: 0.3
 
 # mean and std for normalization
 mean: [0.485, 0.456, 0.406]

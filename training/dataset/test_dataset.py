@@ -26,9 +26,11 @@ class testDataset(DeepfakeAbstractBaseDataset):
             elif domain == 'NeuralTextures':
                 self.label_spe_list.append(4)
             elif domain == 'DeepFakeDetection':
-                self.label_spe_list.append(6)  # real
+                self.label_spe_list.append(6)  # fake
             elif domain == 'actors':
-                self.label_spe_list.append(5)  # fake
+                self.label_spe_list.append(5)  # real
+            elif domain == 'FaceShifter':
+                self.label_spe_list.append(6) # fake
             elif domain == 'Celeb-DF-v2':
                 if 'Celeb-real' in im_path:
                     self.label_spe_list.append(7)
