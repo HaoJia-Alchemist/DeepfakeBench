@@ -46,7 +46,7 @@ parser.add_argument('--config_file', type=str,
                     help='path to detector YAML file')
 parser.add_argument("--device_id", type=str, default='1')
 parser.add_argument('--checkpoints', type=str,
-                    default='/home/jh/disk/logs/DeepfakeBench/rgbmsnlc/rgbmsnlc_FF_all_c23_aug_train_20230906213436/test/FaceForensics++/ckpt_best.pth')
+                    default='/home/jh/disk/logs/DeepfakeBench/rgbmsnlc/rgbmsnlc_DA_FF_all_c23_train_20230910191400/test/FaceForensics++/ckpt_best.pth')
 parser.add_argument("--opts", action=DictAction, help="Modify config options using the command-line", default=None,
                         nargs=argparse.REMAINDER)
 args = parser.parse_args()

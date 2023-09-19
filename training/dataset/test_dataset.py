@@ -31,7 +31,7 @@ class testDataset(DeepfakeAbstractBaseDataset):
                 self.label_spe_list.append(5)  # real
             elif domain == 'FaceShifter':
                 self.label_spe_list.append(6) # fake
-            elif domain == 'Celeb-DF-v2':
+            elif domain == 'Celeb-DF-v1' or domain == 'Celeb-DF-v2':
                 if 'Celeb-real' in im_path:
                     self.label_spe_list.append(7)
                 else:
