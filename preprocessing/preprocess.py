@@ -102,16 +102,14 @@ def create_logger(log_path):
     return logger
 
 
-def get_keypts(image, face, predictor, face_detector):
-    # detect the facial landmarks for the selected face
-    shape = predictor(image, face)
+def get_keypts(landmark):
 
     # select the key points for the eyes, nose, and mouth
-    leye = np.array([shape.part(37).x, shape.part(37).y]).reshape(-1, 2)
-    reye = np.array([shape.part(44).x, shape.part(44).y]).reshape(-1, 2)
-    nose = np.array([shape.part(30).x, shape.part(30).y]).reshape(-1, 2)
-    lmouth = np.array([shape.part(49).x, shape.part(49).y]).reshape(-1, 2)
-    rmouth = np.array([shape.part(55).x, shape.part(55).y]).reshape(-1, 2)
+    leye = np.array([landmark[37][0], landmark[37][1]]).reshape(-1, 2)
+    reye = np.array([landmark[44][0], landmark[44][1]]).reshape(-1, 2)
+    nose = np.array([landmark[30][0], landmark[30][1]]).reshape(-1, 2)
+    lmouth = np.array([landmark[49][0], landmark[49][1]]).reshape(-1, 2)
+    rmouth = np.array([landmark[55][0], landmark[55][1]]).reshape(-1, 2)
 
     pts = np.concatenate([leye, reye, nose, lmouth, rmouth], axis=0)
 
@@ -124,6 +122,9 @@ def extract_aligned_face_dlib(face_detector, predictor, image, res=256, mask=Non
         align and crop the face according to the given bbox and landmarks
         landmark: 5 key points
         """
+
+        # Get the landmarks/parts for the face in box d only with the five key points
+        face_keypoints = get_keypts(landmark)
 
         M = None
         target_size = [112, 112]
@@ -154,7 +155,7 @@ def extract_aligned_face_dlib(face_detector, predictor, image, res=256, mask=Non
         dst[:, 0] *= target_size[0] / (target_size[0] + 2 * x_margin)
         dst[:, 1] *= target_size[1] / (target_size[1] + 2 * y_margin)
 
-        src = landmark.astype(np.float32)
+        src = face_keypoints.astype(np.float32)
 
         # use skimage tranformation
         tform = trans.SimilarityTransform()
@@ -165,16 +166,16 @@ def extract_aligned_face_dlib(face_detector, predictor, image, res=256, mask=Non
         # M = cv2.getAffineTransform(src[[0,1,2],:],dst[[0,1,2],:])
 
         img = cv2.warpAffine(img, M, (target_size[1], target_size[0]))
-
+        landmark = (M[:, :2].dot(landmark.T) + M[:, 2].reshape((2,1))).T
         if outsize is not None:
             img = cv2.resize(img, (outsize[1], outsize[0]))
 
         if mask is not None:
             mask = cv2.warpAffine(mask, M, (target_size[1], target_size[0]))
             mask = cv2.resize(mask, (outsize[1], outsize[0]))
-            return img, mask
+            return img, landmark, mask
         else:
-            return img
+            return img, landmark
 
     # Image size
     height, width = image.shape[:2]
@@ -188,25 +189,25 @@ def extract_aligned_face_dlib(face_detector, predictor, image, res=256, mask=Non
         # For now only take the biggest face
         face = max(faces, key=lambda rect: rect.width() * rect.height())
 
-        # Get the landmarks/parts for the face in box d only with the five key points
-        landmarks = get_keypts(rgb, face, predictor, face_detector)
+
+
+        # detect the facial landmarks for the selected face
+        landmarks = predictor(image, face)
+        landmarks = face_utils.shape_to_np(landmarks)
+
 
         # Align and crop the face
         if mask is not None:
-            cropped_face, mask_face = img_align_crop(rgb, landmarks, outsize=(res, res), mask=mask)
+            cropped_face, landmarks, mask_face = img_align_crop(rgb, landmarks, outsize=(res, res), mask=mask)
         else:
-            cropped_face = img_align_crop(rgb, landmarks, outsize=(res, res), mask=mask)
+            cropped_face, landmarks = img_align_crop(rgb, landmarks, outsize=(res, res), mask=mask)
         cropped_face = cv2.cvtColor(cropped_face, cv2.COLOR_RGB2BGR)
 
-        # Extract the all landmarks from the aligned face
-        face_align = face_detector(cropped_face, 1)
-        landmark = predictor(cropped_face, face_align[0])
-        landmark = face_utils.shape_to_np(landmark)
 
         if mask is not None:
-            return cropped_face, landmark, mask_face
+            return cropped_face, landmarks, mask_face
         else:
-            return cropped_face, landmark
+            return cropped_face, landmarks
 
     else:
         if mask is not None:
