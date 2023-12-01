@@ -71,7 +71,7 @@ class AbstractDetector(nn.Module, metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_test_metrics(self):
+    def get_test_metrics(self,prob,label):
         """
         Returns the testing metrics for the model.
         """

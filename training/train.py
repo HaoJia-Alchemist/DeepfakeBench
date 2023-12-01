@@ -26,8 +26,7 @@ from dataset.abstract_dataset import DeepfakeAbstractBaseDataset
 from dataset.ff_blend import FFBlendDataset
 from dataset.fwa_blend import FWABlendDataset
 from dataset.pair_dataset import pairDataset
-from dataset.dsmsnlc_dataset import DSMSNLCDataset
-from dataset.rgbmsnlc_dataset import RGBMSNLCDataset
+from dataset.nacl_dataset import NaClDataset
 from dataset.test_dataset import testDataset
 
 from trainer.trainer import Trainer
@@ -81,10 +80,8 @@ def prepare_training_data(config):
             )
     elif 'dataset_type' in config and config['dataset_type'] == 'pair':
         train_set = pairDataset(config)  # Only use the pair dataset class in training
-    elif 'dataset_type' in config and config['dataset_type'] == 'dsmsnlc':
-        train_set = DSMSNLCDataset(config)
-    elif 'dataset_type' in config and config['dataset_type'] == 'rgbmsnlc_dataset':
-        train_set = RGBMSNLCDataset(config)
+    elif 'dataset_type' in config and config['dataset_type'] == 'nacl_dataset':
+        train_set = NaClDataset(config)
     else:
         train_set = DeepfakeAbstractBaseDataset(
             config=config,
@@ -92,7 +89,7 @@ def prepare_training_data(config):
         )
     train_data_loader = torch.utils.data.DataLoader(
         dataset=train_set,
-        batch_size=config['train_batchSize'],
+        batch_size=int(config['train_batchSize']),
         shuffle=True,
         num_workers=int(config['workers']),
         collate_fn=train_set.collate_fn,
@@ -112,7 +109,7 @@ def prepare_testing_data(config):
         test_data_loader = \
             torch.utils.data.DataLoader(
                 dataset=test_set,
-                batch_size=config['test_batchSize'],
+                batch_size=int(config['test_batchSize']),
                 shuffle=False,
                 num_workers=int(config['workers']),
                 collate_fn=test_set.collate_fn,

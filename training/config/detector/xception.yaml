@@ -1,5 +1,5 @@
 # log dir 
-log_dir: /home/jh/disk/logs/DeepfakeBench
+log_dir: /home/jh/disk/logs/DeepfakeBench/xception
 
 # model setting
 model:
@@ -18,13 +18,14 @@ test_dataset: [FaceForensics++, FF-F2F, FF-DF, FF-FS, FF-NT]
 dataset_json_folder: '/home/jh/disk/datasets/deepfake/dataset_json'
 
 compression: c23  # compression-level for videos
-train_batchSize: 32   # training batch size
-test_batchSize: 32   # test batch size
-workers: 8   # number of data loading workers
+train_batchSize: 100   # training batch size
+test_batchSize: 200   # test batch size
+workers: 20   # number of data loading workers
 frame_num: {'train': 64, 'test': 32}   # number of frames to use per video in training and testing
 resolution: 256   # resolution of output image to network
 with_mask: false   # whether to include mask information in the input
 with_landmark: false   # whether to include facial landmark information in the input
+balance_data: false # whether to keep data balanced
 
 # label settings
 label_dict:

@@ -225,23 +225,23 @@ class UCFDetector(AbstractDetector):
         acc_spe = get_accracy(label_spe.detach(), pred_spe.detach())
         metric_batch_dict = {'acc': acc, 'acc_spe': acc_spe, 'auc': auc, 'eer': eer, 'ap': ap}
         return metric_batch_dict
-    
-    def get_test_metrics(self):
-        y_pred = np.concatenate(self.prob)
-        y_true = np.concatenate(self.label)
+
+    def get_test_metrics(self, prob, label):
+        y_pred = np.concatenate(prob)
+        y_true = np.concatenate(label)
         # auc
         fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
         auc = metrics.auc(fpr, tpr)
-        # eer
+        # ee
         fnr = 1 - tpr
         eer = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
         # ap
-        ap = metrics.average_precision_score(y_true,y_pred)
+        ap = metrics.average_precision_score(y_true, y_pred)
         # acc
-        acc = self.correct / self.total
-        # reset the prob and label
-        self.prob, self.label = [], []
-        return {'acc':acc, 'auc':auc, 'eer':eer, 'ap':ap, 'pred':y_pred, 'label':y_true}
+        prediction_class = np.where(y_pred > 0.5, 1, 0)
+        correct = (prediction_class == y_true).sum().item()
+        acc = correct / y_true.size
+        return {'acc': acc, 'auc': auc, 'eer': eer, 'ap': ap, 'pred': y_pred, 'label': y_true}
 
     def visualize_features(self, specific_features, common_features):
         import matplotlib.pyplot as plt
@@ -272,30 +272,9 @@ class UCFDetector(AbstractDetector):
             out_sha, sha_feat = self.head_sha(f_share)
             out_spe, spe_feat = self.head_spe(f_spe)
             prob_sha = torch.softmax(out_sha, dim=1)[:, 1]
-            self.prob.append(
-                prob_sha
-                .detach()
-                .squeeze()
-                .cpu()
-                .numpy()
-            )
-            self.label.append(
-                data_dict['label']
-                .detach()
-                .squeeze()
-                .cpu()
-                .numpy()
-            )
-            # deal with acc
-            _, prediction_class = torch.max(out_sha, 1)
-            correct = (prediction_class == data_dict['label']).sum().item()
-            self.correct += correct
-            self.total += data_dict['label'].size(0)
-
-            pred_dict = {'cls': out_sha, 'feat': sha_feat}
+            pred_dict = {'cls': out_sha, 'feat': sha_feat, 'prob':prob_sha}
             return  pred_dict
-
-        bs = self.config['train_batchSize']
+        bs = f_share.shape[0]//2
         # using idx aug in the training mode
         aug_idx = random.random()
         if aug_idx < 0.7:

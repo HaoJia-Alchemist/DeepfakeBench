@@ -1,6 +1,6 @@
 # log dir 
-log_dir: /home/jh/disk1/logs/DeepfakeBench/efficientb4
-task_name: efficientb4_FF-NT_c23
+log_dir: /home/jh/disk1/logs/DeepfakeBench/ablation/efficientb4
+task_name: efficientb4_FF
 # model setting
 # pretrained: /home/zhiyuanyan/disfin/deepfake_benchmark/training/pretrained/xception-b5690688.pth   # path to a pre-trained model, if using one
 model_name: efficientnetb4   # model name

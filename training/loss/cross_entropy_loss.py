@@ -9,7 +9,7 @@ class CrossEntropyLoss(AbstractLossClass):
         super().__init__()
         self.loss_fn = nn.CrossEntropyLoss()
 
-    def forward(self, inputs, targets):
+    def forward(self, pred_label,label):
         """
         Computes the cross-entropy loss.
 
@@ -21,6 +21,6 @@ class CrossEntropyLoss(AbstractLossClass):
             A scalar tensor representing the cross-entropy loss.
         """
         # Compute the cross-entropy loss
-        loss = self.loss_fn(inputs, targets)
+        loss = self.loss_fn(pred_label, label)
 
         return loss

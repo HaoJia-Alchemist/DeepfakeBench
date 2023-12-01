@@ -1,10 +1,10 @@
 preprocess:
   worker_num: # the number of cpu workers
     type: int
-    default: 20
+    default: 10
   dataset_name: # the name of dataset
     choices: ['FaceForensics++','Celeb-DF-v1', 'Celeb-DF-v2', 'DFDCP', 'DFDC', 'DeeperForensics-1.0','UADFV']
-    default: 'DFDCP'
+    default: 'DFDC'
   dataset_root_path: # the root path to the dataset
     type: str
     default: '/home/jh/disk1/datasets/deepfake'
@@ -27,7 +27,7 @@ preprocess:
 rearrange:
   dataset_name: # the name of dataset
     choices: ['FaceForensics++', 'DeepFakeDetection', 'Celeb-DF-v1', 'Celeb-DF-v2','DFDCP', 'DFDC', 'DeeperForensics-1.0','UADFV','FaceShifter']
-    default: 'DFDCP'
+    default: 'DFDC'
   dataset_root_path: # the root path to the dataset
     type: str
     default: '/home/jh/disk1/datasets/deepfake'

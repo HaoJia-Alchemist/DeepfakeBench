@@ -1,9 +1,10 @@
 # log dir 
-log_dir: /mntcephfs/lab_data/zhiyuanyan/benchmark_results/logs_final/f3net
+log_dir: /home/jh/disk/logs/DeepfakeBench/f3net
 
 # model setting
-pretrained: /home/zhiyuanyan/disfin/deepfake_benchmark/training/pretrained/xception-b5690688.pth   # path to a pre-trained model, if using one
-model_name: f3net   # model name
+pretrained: /home/jh/disk/pretrained/DeepfakeBench/xception-b5690688.pth   # path to a pre-trained model, if using one
+model:
+  name: f3net   # model name
 backbone_name: xception  # backbone name
 
 # backbone setting
@@ -14,23 +15,25 @@ backbone_config:
   mode: original
 
 # dataset
+dataset_type: dataset
 all_dataset: [FaceForensics++, FF-F2F, FF-DF, FF-FS, FF-NT, FaceShifter, DeepFakeDetection, Celeb-DF-v1, Celeb-DF-v2, DFDCP, DFDC, DeeperForensics-1.0, UADFV]
 train_dataset: [FF-NT]
-test_dataset: [FaceForensics++, FF-F2F, FF-DF, FF-FS, FF-NT]
-dataset_json_folder: '/home/zhiyuanyan/disfin/deepfake_benchmark/preprocessing/dataset_json'
-save_ckpt: true   # whether to save checkpoint
-save_feat: true   # whether to save features
+test_dataset: [FaceForensics++, FF-F2F, FF-DF, FF-FS, FF-NT, Celeb-DF-v2]
+#test_dataset: [Celeb-DF-v2]
+dataset_json_folder: '/home/jh/disk/datasets/deepfake/dataset_json'
 
 compression: c23  # compression-level for videos
-train_batchSize: 32   # training batch size
-test_batchSize: 32   # test batch size
-workers: 8   # number of data loading workers
+train_batchSize: 100   # training batch size
+test_batchSize: 150   # test batch size
+workers: 15   # number of data loading workers
 frame_num: {'train': 32, 'test': 32}   # number of frames to use per video in training and testing
 resolution: 256   # resolution of output image to network
-balance_data: false   # whether to balance the number of real and fake videos in training data
 with_mask: false   # whether to include mask information in the input
 with_landmark: false   # whether to include facial landmark information in the input
-
+save_ckpt: true   # whether to save checkpoint
+save_feat: false   # whether to save features
+save_data_dict: false # whether to save data dict
+balance_data: false
 # label settings
 label_dict:
   # DFD
@@ -66,7 +69,7 @@ label_dict:
 
 
 # data augmentation
-use_data_augmentation: false  # Add this flag to enable/disable data augmentation
+use_data_augmentation: true  # Add this flag to enable/disable data augmentation
 data_aug:
   flip_prob: 0.5
   rotate_prob: 0.5
@@ -78,15 +81,16 @@ data_aug:
   contrast_limit: [-0.1, 0.1]
   quality_lower: 40
   quality_upper: 100
+  noise_aug_prob: 0
 
 # mean and std for normalization
-mean: [0.5, 0.5, 0.5]
-std: [0.5, 0.5, 0.5]
+mean: [0.485, 0.456, 0.406]
+std: [0.229, 0.224, 0.225]
 
 # optimizer config
 optimizer:
   # choose between 'adam' and 'sgd'
-  type: adam
+  type: adamW
   adam:
     lr: 0.0002  # learning rate
     beta1: 0.9  # beta1 for Adam optimizer
@@ -98,25 +102,32 @@ optimizer:
     lr: 0.0002  # learning rate
     momentum: 0.9  # momentum for SGD optimizer
     weight_decay: 0.0005  # weight decay for regularization
+  adamW:
+    lr: 0.0001  # learning rate
+    beta1: 0.9  # beta1 for Adam optimizer
+    beta2: 0.999 # beta2 for Adam optimizer
+    weight_decay: 0.000001  # weight decay for regularization
 
 # training config
-lr_scheduler: null   # learning rate scheduler
+lr_scheduler: step   # learning rate scheduler
+lr_step: 6000
+lr_gamma: 0.5
 nEpochs: 10   # number of epochs to train for
 start_epoch: 0   # manual epoch number (useful for restarts)
-save_epoch: 1   # interval epochs for saving models
+save_epoch: 5   # interval epochs for saving models
 rec_iter: 100   # interval iterations for recording
 logdir: ./logs   # folder to output images and logs
-manualSeed: 1024   # manual seed for random number generation
-save_ckpt: false   # whether to save checkpoint
+manualSeed: 1234   # manual seed for random number generation
 
 # loss function
-loss_func: cross_entropy   # loss function to use
+loss_func: cross_entropy   # loss function to use: cross_entropy or nbmsnlc_loss
 losstype: null
 
 # metric
 metric_scoring: auc   # metric for evaluation (auc, acc, eer, ap)
 
 # cuda
-ngpu: 1   # number of GPUs to use
+gpus: [1, 2]   # number of GPUs to use
 cuda: true   # whether to use CUDA acceleration
 cudnn: true   # whether to use CuDNN for convolution operations
+

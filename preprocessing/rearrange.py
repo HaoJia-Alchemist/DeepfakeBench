@@ -421,12 +421,15 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
         with open(os.path.join(dataset_root_path, dataset_name, 'lists/splits/train.txt'), 'r') as f:
             train_txt = f.readlines()
             train_txt = [line.strip().split('.')[0] for line in train_txt]
+            source_train_txt = [line.split('_')[1] for line in train_txt]
         with open(os.path.join(dataset_root_path, dataset_name, 'lists/splits/test.txt'), 'r') as f:
             test_txt = f.readlines()
             test_txt = [line.strip().split('.')[0] for line in test_txt]
+            source_test_txt = [line.split('_')[1] for line in test_txt]
         with open(os.path.join(dataset_root_path, dataset_name, 'lists/splits/val.txt'), 'r') as f:
             val_txt = f.readlines()
             val_txt = [line.strip().split('.')[0] for line in val_txt]
+            source_val_txt = [line.split('_')[1] for line in val_txt]
         dataset_path = os.path.join(dataset_root_path, dataset_name)
         dataset_dict[dataset_name] = {'DF_real': {'train': {}, 'test': {}, 'val': {}},
                                 'DF_fake': {'train': {}, 'test': {}, 'val': {}}}
@@ -443,7 +446,7 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
                 elif video_name in val_txt:
                     set_attr = 'val'
                 else:
-                    raise ValueError(f"wrong in processing vidname {dataset_name}: {video_name}")
+                    raise ValueError(f"wrong in processing video name {dataset_name}: {video_name}")
                 label = 'DF_fake'
                 frame_paths = [os.path.join(video_path, frame.name) for frame in os.scandir(video_path)]
                 ## if frame image in frame_paths is not the correct png, skip this frame yxh
@@ -459,14 +462,20 @@ def generate_dataset_file(dataset_name, dataset_root_path, output_file_path, com
             video_paths = [os.path.join(actor_path, 'frames', video.name) for video in os.scandir(os.path.join(actor_path, 'frames'))]
             for video_path in video_paths:
                 video_name = video_path.split('/')[-1]
+                if video_name.split('_')[0] in source_train_txt:
+                    set_attr = 'train'
+                elif video_name.split('_')[0] in source_test_txt:
+                    set_attr = 'test'
+                elif video_name.split('_')[0] in source_val_txt:
+                    set_attr = 'val'
+                else:
+                    raise ValueError(f"wrong in processing vidname {dataset_name}: {video_name}")
                 frame_paths = [os.path.join(video_path, frame.name) for frame in os.scandir(video_path)]
                 ## if frame image in frame_paths is not the correct png, skip this frame yxh
                 for frame_path in frame_paths:
                     if cv2.imread(frame_path) is None:
                         frame_paths.remove(frame_path)
-                dataset_dict[dataset_name][label]['train'][video_name] = {'label': label, 'frames': frame_paths}
-                dataset_dict[dataset_name][label]['test'][video_name] = {'label': label, 'frames': frame_paths}
-                dataset_dict[dataset_name][label]['val'][video_name] = {'label': label, 'frames': frame_paths}
+                dataset_dict[dataset_name][label][set_attr][video_name] = {'label': label, 'frames': frame_paths}
         
     ## UADFV dataset
     elif dataset_name == 'UADFV':

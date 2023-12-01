@@ -117,6 +117,8 @@ class XceptionDetector(AbstractDetector):
         acc = correct / y_true.size
         # reset the prob and label
         self.prob, self.label = [], []
+        np.save('y_true.npy', y_true)
+        np.save('y_pred.npy', y_pred)
         return {'acc':acc, 'auc':auc, 'eer':eer, 'ap':ap, 'pred':y_pred, 'label':y_true}
 
     def forward(self, data_dict: dict, inference=False) -> dict:

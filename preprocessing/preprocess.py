@@ -383,7 +383,6 @@ def preprocess(dataset_path, mask_path, output_path, mode, num_frames, stride, l
 
         # Start timer
     start_time = time.monotonic()
-
     # Define the number of processes based on CPU capabilities
     num_processes = worker_num
 
@@ -491,13 +490,13 @@ if __name__ == '__main__':
         sub_train_dataset_names = ["dfdc_train_part_" + str(i) for i in range(0, 50)]
         sub_train_dataset_paths = [Path(os.path.join(dataset_path, 'train', name)) for name in sub_train_dataset_names]
         sub_dataset_paths = [Path(os.path.join(dataset_path, 'test'))] + sub_train_dataset_paths
-        output_dataset_paths = [Path(os.path.join(output_path, 'train', name)) for name in sub_train_dataset_names] + [Path(os.path.join(output_path, 'test'))]
+        output_dataset_paths = [Path(os.path.join(output_path, 'test'))]+[Path(os.path.join(output_path, 'train', name)) for name in sub_train_dataset_names]
     elif dataset_name == 'DeeperForensics-1.0':
         real_sub_dataset_names = ['source_videos/' + name for name in
                                   os.listdir(os.path.join(dataset_path, 'source_videos'))]
         fake_sub_dataset_names = ['manipulated_videos/' + name for name in
                                   os.listdir(os.path.join(dataset_path, 'manipulated_videos'))]
-        sub_dataset_names = real_sub_dataset_names.extend(fake_sub_dataset_names)
+        sub_dataset_names = real_sub_dataset_names + fake_sub_dataset_names
         sub_dataset_paths = [Path(os.path.join(dataset_path, name)) for name in sub_dataset_names]
         output_dataset_paths = [Path(os.path.join(output_path, name)) for name in sub_dataset_names]
     ## UADFV

@@ -1,7 +1,6 @@
 # log dir 
 log_dir: /home/jh/disk1/logs/DeepfakeBench/rgbmsnlc
-task_name: tgbmsnlc_FF-NT_raw
-weights_path: null
+task_name: rgbmsnlc_FF-NT_raw
 # model setting
 model:
   name: rgbmsnlc   # model name

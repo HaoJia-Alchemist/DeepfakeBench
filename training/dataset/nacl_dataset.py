@@ -17,7 +17,7 @@ import cv2
 from dataset.albu import IsotropicResize, NoiseAugmentation
 
 
-class RGBMSNLCDataset(DeepfakeAbstractBaseDataset):
+class NaClDataset(DeepfakeAbstractBaseDataset):
 
     def __init__(self, config, mode='train'):
         super().__init__(config, mode)
@@ -134,6 +134,8 @@ class RGBMSNLCDataset(DeepfakeAbstractBaseDataset):
             if label == 0:
                 # print("real to fake")
                 image, mask = self.noise_aug.noise_aug(image, landmarks)
+                if not self.config['with_mask']:
+                    mask = None
                 self.reversed_label_image.append(image_path)
                 label = 1
             elif label == 1 and random.random() < self.real_num / self.fake_num and len(self.reversed_label_image) > 0:
@@ -224,7 +226,7 @@ class RGBMSNLCDataset(DeepfakeAbstractBaseDataset):
 if __name__ == "__main__":
     with open('/home/jh/disk/workspace/DeepfakeBench/training/config/detector/rgbmsnlc.yaml', 'r') as f:
         config = yaml.safe_load(f)
-    train_set = RGBMSNLCDataset(
+    train_set = NaClDataset(
         config=config,
         mode='train',
     )

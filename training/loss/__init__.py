@@ -9,4 +9,5 @@ from .contrastive_regularization import ContrastiveLoss
 from .l1_loss import L1Loss
 from .id_loss import IDLoss
 from .vgg_loss import VGGLoss
+from .nacl_loss import NaClLoss
 from .dsmsnlc_loss import DSMSNLCLoss

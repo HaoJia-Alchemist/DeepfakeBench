@@ -39,16 +39,17 @@ from collections import defaultdict
 
 import argparse
 from logger import create_logger
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 parser = argparse.ArgumentParser(description='Deepfake Detection Test Args')
 parser.add_argument('--config_file', type=str,
-                    default='/home/jh/disk/workspace/DeepfakeBench/training/config/detector/rgbmsnlc.yaml',
+                    default='/home/jh/disk/workspace/DeepfakeBench/training/config/ablation/efficientnetb4.yaml',
                     help='path to detector YAML file')
-parser.add_argument("--device_id", type=str, default='1')
+parser.add_argument("--device_id", type=str, default='2')
 parser.add_argument('--checkpoints', type=str,
                     default='/home/jh/disk/logs/DeepfakeBench/rgbmsnlc/rgbmsnlc_DA_FF_all_c23_train_20230910191400/test/FaceForensics++/ckpt_best.pth')
 parser.add_argument("--opts", action=DictAction, help="Modify config options using the command-line", default=None,
-                        nargs=argparse.REMAINDER)
+                    nargs=argparse.REMAINDER)
 args = parser.parse_args()
 
 device = torch.device(f"cuda:{args.device_id}" if torch.cuda.is_available() else "cpu")
@@ -69,14 +70,14 @@ def prepare_testing_data(config):
         config = config.copy()  # create a copy of config to avoid altering the original one
         config['test_dataset'] = [test_name]  # specify the current test dataset
         test_set = testDataset(
-                config=config,
-                mode='test', 
-            )
+            config=config,
+            mode='test',
+        )
         test_data_loader = \
             torch.utils.data.DataLoader(
-                dataset=test_set, 
+                dataset=test_set,
                 batch_size=config['test_batchSize'],
-                shuffle=False, 
+                shuffle=False,
                 num_workers=int(config['workers']),
                 collate_fn=test_set.collate_fn,
             )
@@ -95,14 +96,22 @@ def choose_metric(config):
     return metric_scoring
 
 
+def get_parameter_number(model):
+    total_num = sum(p.numel() for p in model.parameters())
+    trainable_num = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return {'Total': total_num, 'Trainable': trainable_num}
+
+
 def test_one_dataset(model, data_loader, tsne_dict):
+    result = {'label':[], 'prob':[]}
     for i, data_dict in enumerate(tqdm(data_loader)):
         # get data
         data, label, label_spe, mask, landmark = \
-        data_dict['image'], data_dict['label'], data_dict['label_spe'], data_dict['mask'], data_dict['landmark']
-    
+            data_dict['image'], data_dict['label'], data_dict['label_spe'], data_dict['mask'], data_dict['landmark']
+
         # move data to GPU
-        data_dict['image'], data_dict['label'], data_dict['label_spe'] = data.to(device), label.to(device), label_spe.to(device)
+        data_dict['image'], data_dict['label'], data_dict['label_spe'] = data.to(device), label.to(
+            device), label_spe.to(device)
         if mask is not None:
             data_dict['mask'] = mask.to(device)
         if landmark is not None:
@@ -112,18 +121,23 @@ def test_one_dataset(model, data_loader, tsne_dict):
         predictions = inference(model, data_dict)
 
         # update predictions by adding label_spe for t-SNE
-        predictions['label_spe'] = label_spe.cpu().numpy()
+        # predictions['label_spe'] = label_spe.cpu().numpy()
 
         # deal with the feat, pooling if needed
-        if len(predictions['feat'].shape) == 4:
-            predictions['feat'] = F.adaptive_avg_pool2d(predictions['feat'], (1, 1)).reshape(predictions['feat'].shape[0], -1)
-        predictions['feat'] = predictions['feat'].cpu().numpy()
-    
+        # if len(predictions['feat'].shape) == 4:
+        #     predictions['feat'] = F.adaptive_avg_pool2d(predictions['feat'], (1, 1)).reshape(
+        #         predictions['feat'].shape[0], -1)
+        # predictions['feat'] = predictions['feat'].cpu().numpy()
+
         # tsne
-        tsne_dict['feat'].append(predictions['feat'])
-        tsne_dict['label_spe'].append(predictions['label_spe'])
-    return predictions, tsne_dict
-    
+        # tsne_dict['feat'].append(predictions['feat'])
+        # tsne_dict['label_spe'].append(predictions['label_spe'])
+        # test_result
+        result['label'].append(label.cpu().numpy())
+        result['prob'].append(predictions['prob'].cpu().numpy())
+    return tsne_dict, result
+
+
 def test_epoch(model, test_data_loaders):
     # set model to eval mode
     model.eval()
@@ -138,12 +152,12 @@ def test_epoch(model, test_data_loaders):
     keys = test_data_loaders.keys()
     for key in keys:
         # compute loss for each dataset
-        predictions, tsne_dict = test_one_dataset(model, test_data_loaders[key], tsne_dict)
-        
+        tsne_dict, result = test_one_dataset(model, test_data_loaders[key], tsne_dict)
+
         # compute metric for each dataset
-        metric_one_dataset = model.get_test_metrics()
+        metric_one_dataset = model.get_test_metrics(result['prob'], result['label'])
         metrics_all_datasets[key] = metric_one_dataset
-        
+
         # info for each dataset
         metric_str = f"dataset: {key}        "
         for k, v in metric_one_dataset.items():
@@ -151,11 +165,12 @@ def test_epoch(model, test_data_loaders):
         print(metric_str)
 
     # print(f"before concat, feat shape is: {tsne_dict['feat'].shape}, label is: {tsne_dict['label_spe']}")
-    tsne_dict['feat'] = np.concatenate(tsne_dict['feat'], axis=0)
+    # tsne_dict['feat'] = np.concatenate(tsne_dict['feat'], axis=0)
     # print(f"after concat, feat shape is: {tsne_dict['feat'].shape}, label is: {tsne_dict['label_spe']}")
-    tsne_dict['label_spe'] = np.concatenate(tsne_dict['label_spe'], axis=0)
+    # tsne_dict['label_spe'] = np.concatenate(tsne_dict['label_spe'], axis=0)
     print('===> Test Done!')
     return metrics_all_datasets, tsne_dict
+
 
 @torch.no_grad()
 def inference(model, data_dict):
@@ -175,7 +190,7 @@ def main():
     for key, value in config.items():
         params_string += "{}: {}".format(key, value) + "\n"
     print(params_string)
-    
+
     # init seed
     init_seed(config)
 
@@ -185,10 +200,11 @@ def main():
 
     # prepare the testing data loader
     test_data_loaders = prepare_testing_data(config)
-    
+
     # prepare the model (detector)
     model_class = DETECTOR[config['model']['name']]
     model = model_class(config).to(device)
+    get_parameter_number(model)
     epoch = 0
     if config['model']['checkpoints']:
         try:
@@ -203,7 +219,7 @@ def main():
         sys.exit()
     # prepare the metric
     metric_scoring = choose_metric(config)
-    
+
     # start training
     best_metric, tsne_dict = test_epoch(model, test_data_loaders)
     print(f"===> End with testing {metric_scoring}: {best_metric}!")
@@ -213,6 +229,7 @@ def main():
     with open(os.path.join(config['log_dir'], f"tsne_dict_{config['model']['name']}_{epoch}.pkl"), 'wb') as f:
         pickle.dump(tsne_dict, f)
     print('===> Save tsne done!')
+
 
 if __name__ == '__main__':
     main()

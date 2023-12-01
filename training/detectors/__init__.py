@@ -14,6 +14,8 @@ from .ucf_detector import UCFDetector
 from .recce_detector import RecceDetector
 from .fwa_detector import FWADetector
 from .ffd_detector import FFDDetector
-from .dsmsnlc_detector import DSMSNLCDetector
-from .rgbmsnlc_detector import RGBMSNLCDetector
-from .efficient_only_detector import EfficientOnlyDetector
+from .nbmsnlc.baseline import Baseline
+from .nbmsnlc.baseline_ms import BaselineMs
+# from .nbmsnlc_detector import NBMSNLCDetector
+# from .rgbmsnlc_detector import RGBMSNLCDetector
+from .efficientnetb4_only import EfficientOnlyDetector

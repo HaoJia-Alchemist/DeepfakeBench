@@ -12,7 +12,7 @@ class testDataset(DeepfakeAbstractBaseDataset):
         # Fix the label of real images to be 0 and fake images to be 1
         self.label_spe_list = []
         new_image_list = []
-        for im_path in self.image_list:
+        for im_path, label in zip(self.image_list, self.label_list):
             new_image_list.append(im_path)
             domain = im_path.split('/')[-5]
             if domain == 'youtube':
@@ -31,7 +31,7 @@ class testDataset(DeepfakeAbstractBaseDataset):
                 self.label_spe_list.append(5)  # real
             elif domain == 'FaceShifter':
                 self.label_spe_list.append(6) # fake
-            elif domain == 'Celeb-DF-v1' or domain == 'Celeb-DF-v2':
+            elif 'Celeb-DF-v1' in im_path or 'Celeb-DF-v2' in im_path :
                 if 'Celeb-real' in im_path:
                     self.label_spe_list.append(7)
                 else:
@@ -41,15 +41,31 @@ class testDataset(DeepfakeAbstractBaseDataset):
                     self.label_spe_list.append(9)
                 else:
                     self.label_spe_list.append(10)
+            elif domain == 'UADFV':
+                if 'real' in im_path:
+                    self.label_spe_list.append(11)
+                else:
+                    self.label_spe_list.append(12)
+            elif 'DeeperForensics-1.0' in im_path:    # DeeperForensics-1.0
+                if 'source_videos' in im_path: # real
+                    self.label_spe_list.append(13)
+                else: # fake
+                    self.label_spe_list.append(14)
+            elif 'DFDC' in im_path:
+                if label == 0: # real
+                    self.label_spe_list.append(15)
+                else: # fake
+                    self.label_spe_list.append(16)
+
             else:
-                raise ValueError('Invalid domain {}'.format(domain))
+                raise ValueError('Invalid domain {}'.format(im_path))
         self.image_list = new_image_list
 
     def __getitem__(self, index):
         # Get the fake and real image paths and labels
         image_path = self.image_list[index]
         label_spe = self.label_spe_list[index]
-        if label_spe == 0 or label_spe == 5 or label_spe == 7 or label_spe == 9:
+        if label_spe in [0,5,7,9,11,13,15]:
             label = 0
         else:
             label = 1

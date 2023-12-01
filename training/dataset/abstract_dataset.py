@@ -133,8 +133,9 @@ class DeepfakeAbstractBaseDataset(data.Dataset):
             for dataset_name in dataset_list:
                 # Try to get the dataset information from the JSON file
                 try:
-                    with open(os.path.join(self.config['dataset_json_folder'], dataset_name + '.json'), 'r') as f:
+                    with open(os.path.join(self.config['dataset_json_folder'], dataset_name.replace('_c40','') + '.json'), 'r') as f:
                         dataset_info = json.load(f)
+                        pass
                 except:
                     # If the JSON file does not exist, load the images from the genimage path
                     # ALL: ADM  BigGAN  glide  Midjourney  stable_diffusion_v_1_4  stable_diffusion_v_1_5  VQDM  wukong
@@ -162,31 +163,22 @@ class DeepfakeAbstractBaseDataset(data.Dataset):
                 else:
                     # FIXME: ugly, need to be modified here.
                     cp = None
-                    if dataset_name == 'FaceForensics++_c40':
-                        dataset_name = 'FaceForensics++'
-                        cp = 'c40'
-                    elif dataset_name == 'FF-DF_c40':
-                        dataset_name = 'FF-DF'
-                        cp = 'c40'
-                    elif dataset_name == 'FF-F2F_c40':
-                        dataset_name = 'FF-F2F'
-                        cp = 'c40'
-                    elif dataset_name == 'FF-FS_c40':
-                        dataset_name = 'FF-FS'
-                        cp = 'c40'
-                    elif dataset_name == 'FF-NT_c40':
-                        dataset_name = 'FF-NT'
-                        cp = 'c40'
+                    if '_c40' in dataset_name or '_c23'in dataset_name or '_raw' in dataset_name:
+                        dataset_name, cp = dataset_name.split('_')
+
+                    mode = self.mode
+                    if dataset_name == 'DFDC' and mode == 'test':
+                        mode='val'
                     # Get the information for the current dataset
                     for label in dataset_info[dataset_name]:
-                        sub_dataset_info = dataset_info[dataset_name][label][self.mode]
+                        sub_dataset_info = dataset_info[dataset_name][label][mode]
                         # Special case for FaceForensics++ and DeepFakeDetection, choose the compression type
                         if cp == None and dataset_name in ['FF-DF', 'FF-F2F', 'FF-FS', 'FF-NT', 'FaceForensics++',
                                                            'DeepFakeDetection', 'FaceShifter']:
                             sub_dataset_info = sub_dataset_info[self.compression]
-                        elif cp == 'c40' and dataset_name in ['FF-DF', 'FF-F2F', 'FF-FS', 'FF-NT', 'FaceForensics++',
+                        elif dataset_name in ['FF-DF', 'FF-F2F', 'FF-FS', 'FF-NT', 'FaceForensics++',
                                                               'DeepFakeDetection', 'FaceShifter']:
-                            sub_dataset_info = sub_dataset_info['c40']
+                            sub_dataset_info = sub_dataset_info[cp]
                         # Iterate over the videos in the dataset
                         for video_name, video_info in sub_dataset_info.items():
                             # Get the label and frame paths for the current video
@@ -199,12 +191,12 @@ class DeepfakeAbstractBaseDataset(data.Dataset):
                             label_list.extend([label] * len(frame_paths))
                             frame_path_list.extend(frame_paths)
 
-                # Shuffle the label and frame path lists in the same order
-                shuffled = list(zip(label_list, frame_path_list))
-                random.shuffle(shuffled)
-                label_list, frame_path_list = zip(*shuffled)
+            # Shuffle the label and frame path lists in the same order
+            shuffled = list(zip(label_list, frame_path_list))
+            random.shuffle(shuffled)
+            label_list, frame_path_list = zip(*shuffled)
 
-                return frame_path_list, label_list
+            return frame_path_list, label_list
 
         else:
             raise ValueError('No dataset is given.')
